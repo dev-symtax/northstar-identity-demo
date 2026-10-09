@@ -22,6 +22,32 @@ npm run preview -- --port 4173 --strictPort
 
 The `dist/` directory is a self-contained static site. Serve it with any static HTTP server. Runtime requests go only to the serving origin; fonts, icons, data and application behavior do not depend on external services. A live server process must be restarted when restoring a cloud snapshot.
 
+## Standalone offline export
+
+```sh
+npm run build:standalone
+```
+
+The output is **`dist-standalone/index.html`**. This is the only file in that directory and the only file needed to share the demo. The separate Vite configuration uses `vite-plugin-singlefile` to embed all application JavaScript, CSS and imported assets. Both Plus Jakarta Sans WOFF2 files are embedded as base64 data URIs; icons are inline SVG. The font copyright and full OFL license are embedded in a non-executable JSON element in the HTML. There are no runtime services, external fonts, scripts, styles or analytics. The existing `dev`, `build`, `preview` and browser-test workflows are unchanged; the standalone build does not overwrite `dist/`.
+
+Open the HTML directly where your browser permits local files. This cloud environment's managed Chromium blocks `file://` navigation with `ERR_BLOCKED_BY_ADMINISTRATOR`, so direct opening could not be validated here. Browsers can also restrict storage or downloads for local files. The simplest fully offline fallback, from the repository root, is:
+
+```sh
+python3 -m http.server 8080 --bind 127.0.0.1 --directory dist-standalone
+```
+
+Open **http://127.0.0.1:8080/index.html**. No internet connection or npm package download is needed to serve it. On another machine, place `index.html` in a directory and serve that directory with Python's standard-library server. Keep the same browser, hostname and port to retain `localStorage` progress; moving between origins starts a separate saved scenario. Reset and JSON evidence export work locally.
+
+Validate the export after building it:
+
+```sh
+npm run test:standalone
+```
+
+The suite verifies that the directory contains only the HTML, fonts match the repository files byte for byte, font faces actually load, and scripts/styles have no linked dependencies. With browser networking disabled, it supplies only the HTML document from disk and exercises approvals, independent agent blocking, fulfillment, JSON download, reload, reopening and reset. A separate test serves the same HTML through Python on loopback, blocks every other request, then disables browser networking and continues the scenario. Python 3 and a Playwright-compatible Chromium are required for these tests; the existing `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` override also applies.
+
+Raw `http://` and `https://` strings in the generated HTML are limited to React error-documentation links, XML/SVG/MathML namespace identifiers and font-license references. They are metadata and diagnostic strings, not runtime requests or dependencies.
+
 ## Validation
 
 ```sh
@@ -59,4 +85,4 @@ Sarah is the fully interactive scenario. Other identities, applications and agen
 
 ## Visual identity
 
-The interface follows the Meridian Global presentation: locally bundled Plus Jakarta Sans, navy `#0B1530`, teal `#0B7A6E`, restrained bright teal `#19C3B1`, and mint `#E6F4F1`. The wordmark reproduces the presentation’s text treatment; no separate symbol is introduced. Shared tokens live in `src/styles/tokens.css`. Font assets are emitted into the static build; the SIL Open Font License is distributed in `public/fonts/PLUS-JAKARTA-SANS-LICENSE.txt`. No external font CDN is used.
+The interface follows the Meridian Global presentation: locally bundled Plus Jakarta Sans, navy `#0B1530`, teal `#0B7A6E`, restrained bright teal `#19C3B1`, and mint `#E6F4F1`. The wordmark reproduces the presentation’s text treatment; no separate symbol is introduced. Shared tokens live in `src/styles/tokens.css`. The Latin and Latin Extended variable WOFF2 files are checked into `src/assets/fonts/`, sourced from `@fontsource-variable/plus-jakarta-sans` 5.3.0, and referenced by local `@font-face` declarations in `src/styles/fonts.css`. The normal build emits font assets; the standalone build embeds them. The SIL Open Font License is distributed in `public/fonts/PLUS-JAKARTA-SANS-LICENSE.txt` and embedded in the standalone HTML. No external font CDN is used.
