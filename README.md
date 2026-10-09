@@ -1,0 +1,58 @@
+# Northstar Identity
+
+A fictional enterprise identity governance demo for a 10–15 minute Solution Validation / Technical Evaluation presentation to Meridian Global. Built with Vite, React and JavaScript. All data, approvals, connector executions, tickets and audit records are synthetic and local. There is no backend, authentication or external API integration.
+
+## Development
+
+Use Node.js 22.12+ or 24 LTS and npm. From the repository root:
+
+```sh
+npm ci
+npm run dev
+```
+
+This cloud workspace uses `/workspace/northstar-identity-demo`. If the default npm cache is not writable, pass `--cache /workspace/.npm-cache` to `npm ci`. Each cloud task is already isolated; use the existing checkout without creating a worktree.
+
+## Production build
+
+```sh
+npm run build
+npm run preview -- --port 4173 --strictPort
+```
+
+The `dist/` directory is a self-contained static site. Serve it with any static HTTP server. Runtime requests go only to the serving origin; fonts, icons, data and application behavior do not depend on external services. A live server process must be restarted when restoring a cloud snapshot.
+
+## Validation
+
+```sh
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
+If Chromium is already installed, use it without downloading another browser:
+
+```sh
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
+```
+
+The browser suite runs against the production build. It covers the complete approval flow, denial, late approval, legacy evidence, export, reload, reset, enterprise search, mobile navigation and operation with external requests blocked. State tests verify SoD order, independent agent boundaries, evidence separation and deterministic restoration.
+
+## Presenter flow
+
+1. **Identity overview:** introduce Sarah, her direct access, and the Finance Operations Agent. The directory contains 48 employees, 12 applications, 40 entitlements, 4 agents and 4 movers. Meridian’s 35,000 employees refer to the fictional enterprise; the directory is a representative demo cohort.
+2. **Role change event:** Workday changes Finance Analyst to Finance Manager, effective Monday, 12 October 2026. Click **Evaluate access**.
+3. **Governance decision:** show human keep/grant/remove/review decisions. Open **Review exception**, record the rationale, and approve conditionally or deny. In **AI agent access**, show inbound eligibility and outbound permissions. SAP Payment Approval stays blocked for the agent regardless of the human review.
+4. **Fulfillment:** click **Run Monday fulfillment**. The scenario clock advances from Friday to Monday. Connected changes execute; incompatible receivables access is removed before payment approval can activate. The legacy task remains open. Open **Record completion evidence**, use the sample evidence or enter a fictional reference and verification note, and confirm both direct and delegated removals.
+5. **Evidence:** distinguish decision evidence (who, what, why, policy, timestamp, decision) from fulfillment evidence (how, status, owner, SLA, completion reference). Open a record for its full details. **Show full history** retains earlier review and task-open states. **Export evidence** downloads both trails as a local JSON audit bundle.
+
+Payment approval is an additional privilege, not a prerequisite for Sarah’s core-role productivity. Pending or denied review does not block the required manager access. An open legacy task prevents claiming that obsolete access removal is complete.
+
+Use **Reset demo → Reset to start** before the panel. Reload preserves valid scenario actions in versioned `localStorage`; reset clears the scenario and both evidence trails. If storage is blocked or corrupted, the application safely returns to the start and warns when persistence is unavailable. All scenario dates and evidence times are fixed in UTC rather than using the presentation date.
+
+Meridian’s 72% mover readiness is a fictional customer baseline and 95%+ is a target. A single demo event does not demonstrate an enterprise-wide improvement.
+
+## Scope
+
+Sarah is the fully interactive scenario. Other identities, applications and agents have populated read-only details; the three additional movers establish enterprise context. Policies are explicit scenario rules, not a general-purpose policy engine. No real fulfillment or audit assurance is claimed.
