@@ -56,3 +56,7 @@ Meridian’s 72% mover readiness is a fictional customer baseline and 95%+ is a 
 ## Scope
 
 Sarah is the fully interactive scenario. Other identities, applications and agents have populated read-only details; the three additional movers establish enterprise context. Policies are explicit scenario rules, not a general-purpose policy engine. No real fulfillment or audit assurance is claimed.
+
+## Visual identity
+
+The interface follows the Meridian Global presentation: locally bundled Plus Jakarta Sans, navy `#0B1530`, teal `#0B7A6E`, restrained bright teal `#19C3B1`, and mint `#E6F4F1`. The wordmark reproduces the presentation’s text treatment; no separate symbol is introduced. Shared tokens live in `src/styles/tokens.css`. Font assets are emitted into the static build; the SIL Open Font License is distributed in `public/fonts/PLUS-JAKARTA-SANS-LICENSE.txt`. No external font CDN is used.
