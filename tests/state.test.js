@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decisions, identities, applications, entitlements, agents, policies } from '../src/data/catalog.js';
+import { SCENARIO, REVIEWER } from '../src/data/scenario.js';
 import { initialState, demoReducer as reduce, humanAccess, agentAccess, readiness, controlComplete, restoreState, STORAGE_KEY } from '../src/demo/state.js';
 
 const evaluate = state => reduce(state, { type: 'EVALUATE' });
@@ -106,7 +107,30 @@ test('all records use deterministic scenario timestamps and IDs', () => {
   const a = complete(run(approve(evaluate(initialState()))));
   const b = complete(run(approve(evaluate(initialState()))));
   assert.deepEqual(a, b);
-  assert.equal(a.fulfillmentEvidence[0].timestamp.slice(0, 10), '2026-10-12');
-  assert.equal(a.decisionEvidence[0].timestamp.slice(0, 10), '2026-10-09');
+  for (const record of a.decisionEvidence) assert.equal(record.timestamp, record.decision === 'APPROVED' ? SCENARIO.approvalAt : SCENARIO.receivedAt);
+  for (const record of a.fulfillmentEvidence) assert.equal(record.timestamp.slice(0, 10), SCENARIO.effectiveDateISO);
+  assert.equal(a.fulfillmentEvidence[0].timestamp, SCENARIO.fulfillmentAt);
+  const signoff = a.decisionEvidence.find(record => record.decision === 'APPROVED');
+  assert.equal(signoff.actor, `${REVIEWER.name} · ${REVIEWER.role}`);
+  for (const record of a.fulfillmentEvidence.filter(record => ['h-legacy', 'a-legacy'].includes(record.rowId))) assert.equal(record.sla, SCENARIO.legacyDue);
   assert.equal(new Set(a.fulfillmentEvidence.map(e => e.id)).size, a.fulfillmentEvidence.length);
+});
+
+test('late review remains dated to the meeting while execution stays on the effective date', () => {
+  const evaluated = evaluate(initialState());
+  const lateApproved = run(approve(complete(run(evaluated))));
+  const lateDenied = deny(complete(run(evaluated)));
+  for (const state of [lateApproved, lateDenied]) {
+    const review = state.decisionEvidence.find(record => ['APPROVED', 'DENIED'].includes(record.decision));
+    assert.equal(review.timestamp, SCENARIO.approvalAt);
+    assert.equal(review.actor, 'Patrick Sena · Head of Identity Governance');
+    for (const record of state.fulfillmentEvidence) assert.equal(record.timestamp.slice(0, 10), SCENARIO.effectiveDateISO);
+    assert.deepEqual(restore(state), state);
+  }
+});
+test('persisted action histories rebuild dates and reviewer instead of restoring stale derived records', () => {
+  const current = complete(run(approve(evaluate(initialState()))));
+  const stale = { ...current, decisionEvidence: current.decisionEvidence.map(record => ({ ...record, timestamp: '2026-10-09T09:00:00.000Z', actor: 'Patrick Lewis' })), fulfillmentEvidence: [] };
+  assert.equal(STORAGE_KEY, 'northstar-identity-demo-v1');
+  assert.deepEqual(restore(stale), current);
 });

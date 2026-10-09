@@ -1,6 +1,6 @@
 # Northstar Identity
 
-A fictional enterprise identity governance demo for a 10–15 minute Solution Validation / Technical Evaluation presentation to Meridian Global. Built with Vite, React and JavaScript. All data, approvals, connector executions, tickets and audit records are synthetic and local. There is no backend, authentication or external API integration.
+A fictional enterprise identity governance demo for a 10-minute Solution Validation / Technical Evaluation presentation to Meridian Global. Built with Vite, React and JavaScript. All data, approvals, connector executions, tickets and audit records are synthetic and local. There is no backend, authentication or external API integration.
 
 ## Development
 
@@ -65,13 +65,14 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 
 The browser suite runs against the production build. It covers the complete approval flow, denial, late approval, legacy evidence, export, reload, reset, enterprise search, mobile navigation and operation with external requests blocked. State tests verify SoD order, independent agent boundaries, evidence separation and deterministic restoration.
 
-## Presenter flow
+## 10-minute presenter guide
 
-1. **Identity overview:** introduce Sarah, her direct access, and the Finance Operations Agent. The directory contains 48 employees, 12 applications, 40 entitlements, 4 agents and 4 movers. Meridian’s 35,000 employees refer to the fictional enterprise; the directory is a representative demo cohort.
-2. **Role change event:** Workday changes Finance Analyst to Finance Manager, effective Monday, 12 October 2026. Click **Evaluate access**.
-3. **Governance decision:** show human keep/grant/remove/review decisions. Open **Review exception**, record the rationale, and approve conditionally or deny. In **AI agent access**, show inbound eligibility and outbound permissions. SAP Payment Approval stays blocked for the agent regardless of the human review.
-4. **Fulfillment:** click **Run Monday fulfillment**. The scenario clock advances from Friday to Monday. Connected changes execute; incompatible receivables access is removed before payment approval can activate. The legacy task remains open. Open **Record completion evidence**, use the sample evidence or enter a fictional reference and verification note, and confirm both direct and delegated removals.
-5. **Evidence:** distinguish decision evidence (who, what, why, policy, timestamp, decision) from fulfillment evidence (how, status, owner, SLA, completion reference). Open a record for its full details. **Show full history** retains earlier review and task-open states. **Export evidence** downloads both trails as a local JSON audit bundle.
+1. **Identity · 1 min:** introduce Sarah, her direct access, and the Finance Operations Agent. The directory contains 48 employees, 12 applications, 40 entitlements, 4 agents and 4 movers. Meridian’s 35,000 employees refer to the fictional enterprise; the directory is a representative demo cohort.
+2. **Event · 1 min:** Workday receives the source event on Tuesday, 13 October 2026 at 09:00 UTC, changing Finance Analyst to Finance Manager effective Monday, 19 October 2026. Click **Evaluate access**. Prepare access decisions now; fulfill the approved changes on Sarah’s effective date.
+3. **Decision · 3 min:** the summary tiles follow the active human or AI agent tab. Open **Review exception**, record the rationale, and click **Approve with sign-off** as Patrick Sena, Head of Identity Governance. Use **View agent decisions** in the confirmation banner to highlight the blocked SAP Payment Approval row. Payment approval is human-only and is never inherited by the agent; POL-SOD-017 still requires removal of incompatible receivables access before activation.
+4. **Fulfillment · 2 min:** click **Run Monday fulfillment**. The workspace date advances from Tuesday, 13 October 2026 to Monday, 19 October 2026, and the run starts at 08:00 UTC. Connected changes execute; incompatible receivables access is removed before payment approval can activate. The legacy task remains open, due Monday 19 October at 12:00 UTC, four hours after the run. Open **Record completion evidence**, use the sample evidence or enter a fictional reference and verification note, and confirm both direct and delegated removals.
+5. **Evidence · 2 min:** distinguish decision evidence (who, what, why, policy, timestamp, decision) from fulfillment evidence (how, status, owner, SLA, completion reference). Start with the five key records: approved human SAP Payment Approval, agent inbound KEEP, agent SAP Payment Approval BLOCK, and human and agent legacy DB write removals. Use **Show all 14 records** for the complete current-state trail and **Show full history** for earlier review and task-open states. Decision evidence is timestamped 13 October at 09:00 UTC, with human sign-off at 09:01 UTC; execution and legacy-task evidence are timestamped 19 October. **Export evidence** downloads both trails as a local JSON audit bundle.
+6. **Outcomes · 1 min:** ask the panel whether the three outcomes were covered: security with Patrick Sena, Head of Identity Governance; HR with Tim Hintermann, Director HR Operations & HRIS; and architecture with Andre Hostombe, Lead Enterprise Architect. The 95%+ mover-productivity target is a program outcome, separate from Sarah’s single role change.
 
 Payment approval is an additional privilege, not a prerequisite for Sarah’s core-role productivity. Pending or denied review does not block the required manager access. An open legacy task prevents claiming that obsolete access removal is complete.
 

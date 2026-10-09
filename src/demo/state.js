@@ -1,4 +1,5 @@
 import { decisions } from '../data/catalog.js';
+import { REVIEWER, SCENARIO } from '../data/scenario.js';
 
 export const STORAGE_KEY = 'northstar-identity-demo-v1';
 export const initialState = () => ({
@@ -6,9 +7,8 @@ export const initialState = () => ({
   tasks: {}, decisionEvidence: [], fulfillmentEvidence: [], actionCount: 0, actions: [],
 });
 
-function timestamp(state, monday = state.fulfillmentStarted) {
-  const base = monday ? Date.UTC(2026, 9, 12, 8) : Date.UTC(2026, 9, 9, 9);
-  return new Date(base + state.actionCount * 60000).toISOString();
+function executionTimestamp(state) {
+  return new Date(Date.parse(SCENARIO.fulfillmentAt) + state.actionCount * 60000).toISOString();
 }
 function decisionRecord(row, decision, at, actor, why = row.why) {
   return { id: `DE-${row.id}-${decision}`, rowId: row.id, eventId: 'WD-MOV-2026-0842', actor, decision, why, policy: row.policy, timestamp: at };
@@ -21,17 +21,17 @@ function reduceState(state, action) {
   if (action.type === 'EVALUATE') {
     if (state.evaluated) return state;
     return { ...state, evaluated: true, actionCount: state.actionCount + 1,
-      decisionEvidence: decisions.map(row => decisionRecord(row, row.decision, timestamp(state), 'Northstar policy evaluation')) };
+      decisionEvidence: decisions.map(row => decisionRecord(row, row.decision, SCENARIO.receivedAt, 'Northstar policy evaluation')) };
   }
   if (action.type === 'REVIEW') {
     if (!state.evaluated || state.review !== 'pending' || !['approved', 'rejected'].includes(action.result) || !action.note?.trim()) return state;
     const row = decisions.find(d => d.id === 'h-payment');
     const next = { ...state, review: action.result, reviewNote: action.note.trim(), actionCount: state.actionCount + 1,
-      decisionEvidence: [...state.decisionEvidence, decisionRecord(row, action.result === 'approved' ? 'APPROVED' : 'DENIED', timestamp(state), 'Patrick · Head of Identity Governance', action.note.trim())] };
+      decisionEvidence: [...state.decisionEvidence, decisionRecord(row, action.result === 'approved' ? 'APPROVED' : 'DENIED', SCENARIO.approvalAt, `${REVIEWER.name} · ${REVIEWER.role}`, action.note.trim())] };
     // A late approval is eligible for a subsequent execution only after SoD removal.
     if (state.fulfillmentStarted) {
       next.tasks = { ...state.tasks, 'h-payment': { status: action.result === 'approved' ? 'Ready to execute' : 'Not granted' } };
-      if (action.result === 'rejected') next.fulfillmentEvidence = [...state.fulfillmentEvidence, executionRecord(row, 'Not granted', timestamp(state), { method: 'Grant withheld after reviewer denial', owner: 'Identity Operations', sla: 'Not applicable', reference: 'REVIEW-0842-DENIED' })];
+      if (action.result === 'rejected') next.fulfillmentEvidence = [...state.fulfillmentEvidence, executionRecord(row, 'Not granted', executionTimestamp(state), { method: 'Grant withheld after reviewer denial', owner: 'Identity Operations', sla: 'Not applicable', reference: 'REVIEW-0842-DENIED' })];
     }
     return next;
   }
@@ -43,7 +43,7 @@ function reduceState(state, action) {
     // Revoke incompatible operational access before granting payment approval.
     const ordered = [...decisions].sort((a, b) => (a.decision === 'REMOVE' ? -1 : 0) - (b.decision === 'REMOVE' ? -1 : 0));
     ordered.forEach((row, index) => {
-      const at = new Date(Date.UTC(2026, 9, 12, 8, state.actionCount, index)).toISOString();
+      const at = new Date(Date.parse(SCENARIO.fulfillmentAt) + (state.fulfillmentStarted ? state.actionCount * 60000 : 0) + index * 1000).toISOString();
       const existing = tasks[row.id];
       if (existing && !['Awaiting approval', 'Ready to execute'].includes(existing.status)) return;
       if (existing?.status === 'Awaiting approval' && state.review === 'pending') return;
@@ -59,7 +59,7 @@ function reduceState(state, action) {
         if (state.review === 'rejected') evidence.push(executionRecord(row, 'Not granted', at, { method: 'Grant withheld after reviewer denial', owner: 'Identity Operations', sla: 'Not applicable', reference: 'REVIEW-0842-DENIED' }));
       } else if (row.entitlement === 'legacy-write') {
         tasks[row.id] = { status: 'Task open' };
-        evidence.push(executionRecord(row, 'Task open', at, { method: 'Controlled manual task', owner: 'Martin Keller · Finance Platforms', sla: 'Mon, 12 Oct · 12:00 UTC', reference: 'SN-TASK-004812' }));
+        evidence.push(executionRecord(row, 'Task open', at, { method: 'Controlled manual task', owner: 'Martin Keller · Finance Platforms', sla: SCENARIO.legacyDue, reference: 'SN-TASK-004812' }));
       } else {
         if (row.id === 'h-payment' && tasks['h-ar']?.status !== 'Removed') return;
         const status = row.decision === 'REMOVE' ? 'Removed' : 'Granted';
@@ -74,9 +74,9 @@ function reduceState(state, action) {
     const tasks = { ...state.tasks };
     const records = ['h-legacy', 'a-legacy'].map(id => {
       tasks[id] = { status: 'Removed' };
-      return executionRecord(decisions.find(d => d.id === id), 'Removed', timestamp(state), {
+      return executionRecord(decisions.find(d => d.id === id), 'Removed', executionTimestamp(state), {
         method: 'DBA revocation + delegated access verification', owner: 'Martin Keller · Finance Platforms',
-        sla: 'Mon, 12 Oct · 12:00 UTC', reference: action.reference.trim(), note: action.note.trim(), task: 'SN-TASK-004812',
+        sla: SCENARIO.legacyDue, reference: action.reference.trim(), note: action.note.trim(), task: 'SN-TASK-004812',
       });
     });
     return { ...state, tasks, actionCount: state.actionCount + 1, fulfillmentEvidence: [...state.fulfillmentEvidence, ...records] };

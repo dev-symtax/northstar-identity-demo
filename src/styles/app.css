@@ -266,6 +266,10 @@ select { border: 1px solid var(--line); background: var(--white); color: var(--m
 .context-finding span { display: block; color: var(--muted); letter-spacing: 1px; font-size: 8px; }
 .context-finding strong { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 5px; }
 .decision-summary { display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--line); border-radius: var(--radius); background: var(--white); margin-bottom: 24px; }
+.decision-summary > .zero-count strong { color: var(--muted); }
+.decision-summary > .zero-count .badge { background: var(--surface); border-color: var(--line); color: var(--muted); }
+.approval-confirmation .notice > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; width: 100%; }
+.agent-block-highlight { background: var(--red-surface); box-shadow: inset 0 0 0 2px var(--red); }
 .decision-summary > div { padding: 19px 22px; border-right: 1px solid var(--line); }
 .decision-summary > div:last-child { border: 0; }
 .decision-summary strong { font-size: 28px; font-weight: 500; color: var(--ink); float: right; line-height: 1; }

@@ -1,3 +1,5 @@
+import { SCENARIO } from './scenario.js';
+
 export const applications = [
   { id: 'sap', name: 'SAP S/4HANA', category: 'Finance', owner: 'Finance Platforms', mode: 'API', criticality: 'Critical' },
   { id: 'powerbi', name: 'Power BI', category: 'Analytics', owner: 'Data & Analytics', mode: 'API', criticality: 'Standard' },
@@ -83,10 +85,10 @@ export const agents = [
   { id: 'sales-agent', name: 'Revenue Insights Agent', owner: 'Victoria Reed', purpose: 'Sales forecasting and account insights', departments: ['Sales'], resources: ['sf-sales', 'powerbi-author'], autonomy: 'Read only' },
 ];
 export const movers = [
-  { id: 'WD-MOV-2026-0842', identity: 'sarah', from: 'Finance Analyst', to: 'Finance Manager', effective: 'Mon, 12 Oct 2026', status: 'Ready to evaluate' },
-  { id: 'WD-MOV-2026-0843', identity: 'identity-2', from: 'Service Desk Analyst', to: 'IT Operations Manager', effective: 'Tue, 13 Oct 2026', status: 'In review' },
-  { id: 'WD-MOV-2026-0844', identity: 'identity-3', from: 'HR Specialist', to: 'HR Business Partner', effective: 'Wed, 14 Oct 2026', status: 'Scheduled' },
-  { id: 'WD-MOV-2026-0845', identity: 'identity-4', from: 'Account Executive', to: 'Sales Manager', effective: 'Fri, 16 Oct 2026', status: 'Ready to evaluate' },
+  { id: 'WD-MOV-2026-0842', identity: 'sarah', from: 'Finance Analyst', to: 'Finance Manager', effective: SCENARIO.effectiveDate, status: 'Ready to evaluate' },
+  { id: 'WD-MOV-2026-0843', identity: 'identity-2', from: 'Service Desk Analyst', to: 'IT Operations Manager', effective: 'Tuesday, 20 October 2026', status: 'In review' },
+  { id: 'WD-MOV-2026-0844', identity: 'identity-3', from: 'HR Specialist', to: 'HR Business Partner', effective: 'Wednesday, 21 October 2026', status: 'Scheduled' },
+  { id: 'WD-MOV-2026-0845', identity: 'identity-4', from: 'Account Executive', to: 'Sales Manager', effective: 'Friday, 23 October 2026', status: 'Ready to evaluate' },
 ];
 for (const mover of movers.slice(1)) identities.find(i => i.id === mover.identity).role = mover.from;
 
@@ -115,7 +117,7 @@ const rows = [
   ['a-dashboard', 'outbound', 'finance-dashboard', 'GRANT', 'POL-AI-302', 'Management reporting is allowed in the new delegated context.'],
   ['a-ar', 'outbound', 'ar-operator', 'REMOVE', 'POL-AI-302', 'The agent may no longer operate receivables on Sarah’s behalf.'],
   ['a-legacy', 'outbound', 'legacy-write', 'REMOVE', 'POL-AI-302', 'Delegated legacy writes must be removed alongside direct access.'],
-  ['a-payment', 'outbound', 'payment-approval', 'BLOCK', 'POL-AI-303', 'Payment approval is human-only; human approval never propagates to the agent.'],
+  ['a-payment', 'outbound', 'payment-approval', 'BLOCK', 'POL-AI-303', 'Payment approval is human-only and is never inherited by the agent.'],
 ];
 export const decisions = rows.map(([id, scope, entitlement, decision, policy, why]) => ({ id, scope, entitlement, decision, policy, why }));
 export function resourceName(row) { return row.entitlement ? entitlementById[row.entitlement].name : 'Finance Operations Agent'; }
