@@ -87,7 +87,7 @@ th { position: relative; }
 .exception-panel { margin-bottom: 24px; scroll-margin-top: 105px; }
 .decision-summary { margin-bottom: 24px; }
 .decision-summary > div > span:last-child { font-size: 15px; }
-.recommendations-screen .recommendation-controls { flex-wrap: nowrap; gap: 4px; min-width: 265px; }
+.recommendations-screen .recommendation-controls { flex-wrap: nowrap; gap: 4px; min-width: 175px; }
 .recommendations-screen .recommendation-controls .button { font-size: 15px; padding: 8px 10px; }
 .recommendation-status small { max-width: 250px; }
 .recommendation-status .badge { background: var(--surface); border-color: var(--line); color: var(--muted); }

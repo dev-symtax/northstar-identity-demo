@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   EDIT_COMMENT, REVIEW_COMMENT, COMPLETION_REFERENCE, accessRow, acceptAll,
-  applyDecisions, assertKeyAuditRecords, assertProductLanguage, changeRow,
+  applyDecisions, assertKeyAuditRecords, assertProductLanguage, rejectRow,
   confirmCompletion, decideAll, decidePayment, downloadAudit, expandConnected,
   expectFullyInViewport, nav, openSarahEvent, provision, recommend,
 } from '../helpers/iga-flow.js';
@@ -116,14 +116,14 @@ test('Apply decisions stays disabled until both scopes and the SoD review are re
 test('Budget Approval override requires a comment and is reflected in provisioning and the audit trail', async ({ page }) => {
   await page.goto('/');
   await recommend(page);
-  await accessRow(page, 'h-budget').getByRole('button', { name: 'Change', exact: true }).click();
-  const editor = page.locator('[data-change-for="h-budget"]');
+  await accessRow(page, 'h-budget').getByRole('button', { name: 'Reject', exact: true }).click();
+  const editor = page.locator('[data-reject-for="h-budget"]');
   await editor.getByLabel('Decision', { exact: true }).selectOption({ label: 'Do not grant' });
-  await editor.getByRole('button', { name: 'Save change', exact: true }).click();
+  await editor.getByRole('button', { name: 'Record decision', exact: true }).click();
   expect(await editor.getByLabel('Comment', { exact: true }).evaluate(input => input.validity.valid)).toBe(false);
   expect((await storedState(page)).accessDecisions['h-budget'].decidedAction).toBe(null);
   await editor.getByLabel('Comment', { exact: true }).fill(EDIT_COMMENT);
-  await editor.getByRole('button', { name: 'Save change', exact: true }).click();
+  await editor.getByRole('button', { name: 'Record decision', exact: true }).click();
   await expect(accessRow(page, 'h-budget')).toContainText('Changed from Grant to Do not grant');
   await expect(accessRow(page, 'h-budget')).toContainText(EDIT_COMMENT);
   await decideAll(page);
@@ -156,7 +156,7 @@ for (const resolution of ['Keep removal', 'Deny SAP Payment Approval']) {
     await decideAll(page);
     const before = (await storedState(page)).accessDecisions['h-ar'];
     await page.getByRole('tab', { name: 'Human access', exact: true }).click();
-    await changeRow(page, 'h-ar', 'Keep', 'Receivables responsibility is retained for the month-end transition.');
+    await rejectRow(page, 'h-ar', 'Keep', 'Receivables responsibility is retained for the month-end transition.');
     await expect(page.getByText('POL-SOD-017 prevents Accounts Receivable Operator and SAP Payment Approval from being active together.', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Keep removal', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Deny SAP Payment Approval', exact: true })).toBeVisible();
@@ -194,14 +194,14 @@ test('agent payment approval is policy-locked and attempts to change it do not m
   await row.getByRole('button', { name: 'Locked by policy · View policy', exact: true }).click();
   await expect(page.getByText('Payment approval is restricted to human identities. This cannot be overridden.', { exact: true })).toBeVisible();
   expect((await storedState(page)).accessDecisions['a-payment']).toEqual(before);
-  await expect(page.locator('[data-change-for="a-payment"]')).toHaveCount(0);
+  await expect(page.locator('[data-reject-for="a-payment"]')).toHaveCount(0);
   await assertProductLanguage(page);
 });
 
 test('keeping Legacy Finance DB Write updates the manual task scope to the agent only', async ({ page }) => {
   await page.goto('/');
   await recommend(page);
-  await changeRow(page, 'h-legacy', 'Keep', 'Human write access is retained for the approved reporting transition.');
+  await rejectRow(page, 'h-legacy', 'Keep', 'Human write access is retained for the approved reporting transition.');
   await decideAll(page);
   await applyDecisions(page);
   await provision(page);

@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 import {
-  accessRow, acceptAll, applyDecisions, changeRow, confirmCompletion,
+  accessRow, acceptAll, applyDecisions, rejectRow, confirmCompletion,
   decideAll, downloadAudit, expectFullyInViewport, nav, provision, recommend,
 } from './iga-flow.js';
 
@@ -11,7 +11,8 @@ async function assertOneSelection(page, id, selected) {
   await page.mouse.move(0, 0);
   const controls = accessRow(page, id).locator('.recommendation-controls');
   await expect(controls.locator('[aria-pressed="true"]')).toHaveCount(selected ? 1 : 0);
-  for (const name of ['Accept', 'Change', 'Reject']) {
+  await expect(controls.getByRole('button')).toHaveText(['Accept', 'Reject']);
+  for (const name of ['Accept', 'Reject']) {
     const button = controls.getByRole('button', { name, exact: true });
     await expect(button).toHaveAttribute('aria-pressed', String(selected === name));
     await expect(button).toHaveCSS('background-color', selected === name ? name === 'Reject' ? 'rgb(251, 241, 240)' : 'rgb(230, 244, 241)' : 'rgb(255, 255, 255)');
@@ -28,9 +29,9 @@ export async function exerciseExclusiveDecisionControls(page, afterReload = asyn
     await row.getByRole('button', { name: 'Accept', exact: true }).click();
     await assertOneSelection(page, id, 'Accept');
     await row.getByRole('button', { name: 'Reject', exact: true }).click();
-    const editor = page.locator(`[data-change-for="${id}"]`);
+    const editor = page.locator(`[data-reject-for="${id}"]`);
     await editor.getByLabel('Comment', { exact: true }).fill(`${scope} dashboard access is not required.`);
-    await editor.getByRole('button', { name: 'Save change', exact: true }).click();
+    await editor.getByRole('button', { name: 'Record decision', exact: true }).click();
     await assertOneSelection(page, id, 'Reject');
     const rejected = (await stored(page)).accessDecisions[id];
     expect(rejected).toMatchObject({ decidedAction: 'DO_NOT_GRANT', decisionSource: 'rejected-recommendation', comment: `${scope} dashboard access is not required.` });
@@ -39,12 +40,12 @@ export async function exerciseExclusiveDecisionControls(page, afterReload = asyn
     expect((await stored(page)).accessDecisions[id]).toEqual(rejected);
     await row.getByRole('button', { name: 'Accept', exact: true }).click();
     await assertOneSelection(page, id, 'Accept');
-    await changeRow(page, id, 'Grant', `${scope} management reporting was manually confirmed.`);
-    await assertOneSelection(page, id, 'Change');
-    await changeRow(page, id, 'Do not grant', `${scope} access is withheld after a manual review.`);
+    await rejectRow(page, id, 'Grant', `${scope} management reporting was manually confirmed.`);
+    await assertOneSelection(page, id, 'Reject');
+    await rejectRow(page, id, 'Do not grant', `${scope} access is withheld after a manual review.`);
     await assertOneSelection(page, id, 'Reject');
     const changed = (await stored(page)).accessDecisions[id];
-    expect(changed).toMatchObject({ decidedAction: 'DO_NOT_GRANT', decisionSource: 'manual-override', comment: `${scope} access is withheld after a manual review.` });
+    expect(changed).toMatchObject({ decidedAction: 'DO_NOT_GRANT', decisionSource: 'rejected-recommendation', comment: `${scope} access is withheld after a manual review.` });
     await acceptAll(page, scope);
     expect((await stored(page)).accessDecisions[id]).toEqual(changed);
     await assertOneSelection(page, id, 'Reject');

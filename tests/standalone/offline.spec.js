@@ -4,11 +4,12 @@ import { test, expect } from '@playwright/test';
 import { assertLogoConsistency, verifyLogoCatalog } from '../helpers/application-logos.js';
 import { exerciseCountersAndManualStages } from '../helpers/decision-counters-manual-stages.js';
 import { exerciseApprovalFirstSod, exerciseKeepFirstSod } from '../helpers/sod-dependency.js';
+import { exerciseBinaryRecommendations } from '../helpers/binary-recommendations.js';
 import { exerciseRecommendationOverrides } from '../helpers/recommendation-overrides.js';
 import { exerciseExclusiveDecisionControls, exerciseScheduledAuditNavigation } from '../helpers/decision-audit-actions.js';
 import {
   EDIT_COMMENT, REVIEW_COMMENT, COMPLETION_REFERENCE, accessRow, applyDecisions,
-  assertKeyAuditRecords, assertProductLanguage, changeRow, confirmCompletion,
+  assertKeyAuditRecords, assertProductLanguage, rejectRow, confirmCompletion,
   decideAll, downloadAudit, expandConnected, expectFullyInViewport, nav, provision, recommend,
 } from '../helpers/iga-flow.js';
 
@@ -345,7 +346,7 @@ test('offline Budget Approval edit is carried into the scheduled changes and aud
   await page.goto(appUrl);
   await disableNetworking(context);
   await recommend(page);
-  await changeRow(page, 'h-budget', 'Do not grant', EDIT_COMMENT);
+  await rejectRow(page, 'h-budget', 'Do not grant', EDIT_COMMENT);
   await decideAll(page);
   await applyDecisions(page);
   await expandConnected(page);
@@ -375,10 +376,19 @@ test('offline bulk acceptance preserves manual human and agent selections throug
   await supplyOfflineDocument(context);
   await page.goto(appUrl);
   await disableNetworking(context);
-  await exerciseRecommendationOverrides(page, 'Change', () => disableNetworking(context));
+  await exerciseRecommendationOverrides(page, 'accepted recommendations', () => disableNetworking(context));
   expect(await page.evaluate(() => navigator.onLine)).toBe(false);
   expect(unexpected).toEqual([]);
   expect(errors).toEqual([]);
+});
+
+test('offline binary controls preserve all opposite mappings, comments, keyboard access, provisioning, reload and reset', async ({ page, context }) => {
+  const unexpected = observeRequests(page);
+  await supplyOfflineDocument(context);
+  await page.goto(appUrl);
+  await disableNetworking(context);
+  await exerciseBinaryRecommendations(page, () => disableNetworking(context));
+  expect(unexpected).toEqual([]);
 });
 
 for (const [name, exercise] of [['exclusive decision controls', exerciseExclusiveDecisionControls], ['scheduled audit navigation', exerciseScheduledAuditNavigation]]) {

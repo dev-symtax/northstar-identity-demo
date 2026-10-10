@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { accessRow, acceptAll, changeRow, confirmCompletion, decideAll, downloadAudit, nav, provision, recommend } from './iga-flow.js';
+import { accessRow, acceptAll, rejectRow, confirmCompletion, decideAll, downloadAudit, nav, provision, recommend } from './iga-flow.js';
 
 const stored = page => page.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')));
 const selectScope = (page, scope) => page.getByRole('tab', { name: scope === 'human' ? 'Human access' : 'AI Agent access', exact: true }).click();
@@ -23,9 +23,9 @@ export async function exerciseCountersAndManualStages(page, afterReload = async 
     const prefix = scope === 'human' ? 'h' : 'a';
     const initial = scope === 'human' ? [3, 3, 2, 1, 0] : [3, 1, 2, 0, 1];
     await expectCounters(page, initial);
-    await changeRow(page, `${prefix}-bi`, 'Remove', `${scope} reporting moved to the management dashboard.`);
+    await rejectRow(page, `${prefix}-bi`, 'Remove', `${scope} reporting moved to the management dashboard.`);
     await expectCounters(page, initial.map((value, index) => index === 0 ? value - 1 : index === 2 ? value + 1 : value));
-    await changeRow(page, `${prefix}-dashboard`, 'Do not grant', `${scope} management access is withheld.`);
+    await rejectRow(page, `${prefix}-dashboard`, 'Do not grant', `${scope} management access is withheld.`);
     const changed = [2, scope === 'human' ? 2 : 0, 3, scope === 'human' ? 1 : 0, scope === 'human' ? 0 : 1];
     await expectCounters(page, changed);
     await acceptAll(page, scope);

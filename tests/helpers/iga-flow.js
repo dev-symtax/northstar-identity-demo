@@ -81,17 +81,17 @@ export async function decideAll(page, approve = true) {
   await acceptAll(page, 'agent');
 }
 
-export async function changeRow(page, id, decision, comment) {
+export async function rejectRow(page, id, decision, comment) {
   const row = accessRow(page, id);
-  await row.getByRole('button', { name: 'Change', exact: true }).click();
-  const form = page.locator(`[data-change-for="${id}"]`);
+  await row.getByRole('button', { name: 'Reject', exact: true }).click();
+  const form = page.locator(`[data-reject-for="${id}"]`);
   // The inline form remains associated with its row if it is rendered as a
   // separate table row, or is nested in the access row itself.
   const editor = await form.count() ? form : row;
   await editor.getByLabel('Decision', { exact: true }).selectOption({ label: decision });
   await editor.getByLabel('Comment', { exact: true }).fill(comment);
   await assertProductLanguage(page);
-  await editor.getByRole('button', { name: 'Save change', exact: true }).click();
+  await editor.getByRole('button', { name: 'Record decision', exact: true }).click();
 }
 
 export async function applyDecisions(page) {

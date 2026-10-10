@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { acceptAll, applyDecisions, changeRow, confirmCompletion, decideAll, decidePayment, nav, openSarahEvent, provision, recommend } from '../helpers/iga-flow.js';
+import { acceptAll, applyDecisions, rejectRow, confirmCompletion, decideAll, decidePayment, nav, openSarahEvent, provision, recommend } from '../helpers/iga-flow.js';
 
 const sarah = page => page.locator('[data-record-id="WD-MOV-2026-0842"]');
 const reviewMover = page => page.getByRole('button', { name: 'Review mover event', exact: true });
@@ -79,7 +79,7 @@ test('Overview also clears attention when all selected changes complete without 
   await recommend(page);
   for (const id of ['h-legacy', 'a-legacy']) {
     await page.getByRole('tab', { name: id.startsWith('h-') ? 'Human access' : 'AI Agent access', exact: true }).click();
-    await changeRow(page, id, 'Keep', 'Legacy access remains an approved business requirement.');
+    await rejectRow(page, id, 'Keep', 'Legacy access remains an approved business requirement.');
   }
   await decideAll(page);
   await applyDecisions(page);

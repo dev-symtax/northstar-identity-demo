@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { accessRow, assertProductLanguage, nav, recommend, decideAll, decidePayment, applyDecisions, provision, changeRow } from '../helpers/iga-flow.js';
+import { accessRow, assertProductLanguage, nav, recommend, decideAll, decidePayment, applyDecisions, provision, rejectRow } from '../helpers/iga-flow.js';
 import { assertLogoConsistency, verifyLogoCatalog } from '../helpers/application-logos.js';
 
 test('Overview Directory contains only core dimensions while Lifecycle events retains movers', async ({ page }) => {
@@ -164,20 +164,20 @@ test('Reject requires a comment, reverses the action, records feedback and enfor
   await page.goto('/');
   await recommend(page);
   await accessRow(page, 'h-bi').getByRole('button', { name: 'Reject', exact: true }).click();
-  let editor = page.locator('[data-change-for="h-bi"]');
+  let editor = page.locator('[data-reject-for="h-bi"]');
   await expect(editor.getByLabel('Decision', { exact: true })).toHaveValue('REMOVE');
-  await editor.getByRole('button', { name: 'Save change', exact: true }).click();
+  await editor.getByRole('button', { name: 'Record decision', exact: true }).click();
   expect(await editor.getByLabel('Comment', { exact: true }).evaluate(input => input.validity.valid)).toBe(false);
   await editor.getByLabel('Comment', { exact: true }).fill('Reporting access is removed for the new management scope.');
-  await editor.getByRole('button', { name: 'Save change', exact: true }).click();
+  await editor.getByRole('button', { name: 'Record decision', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Decision recorded');
   await expect(accessRow(page, 'h-bi')).toContainText('Changed from Keep to Remove');
   await decidePayment(page);
   await accessRow(page, 'h-ar').getByRole('button', { name: 'Reject', exact: true }).click();
-  editor = page.locator('[data-change-for="h-ar"]');
+  editor = page.locator('[data-reject-for="h-ar"]');
   await expect(editor.getByLabel('Decision', { exact: true })).toHaveValue('KEEP');
   await editor.getByLabel('Comment', { exact: true }).fill('Receivables responsibilities are retained during transition.');
-  await editor.getByRole('button', { name: 'Save change', exact: true }).click();
+  await editor.getByRole('button', { name: 'Record decision', exact: true }).click();
   await expect(page.getByText('POL-SOD-017 prevents Accounts Receivable Operator and SAP Payment Approval from being active together.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Keep removal', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Deny SAP Payment Approval', exact: true })).toBeVisible();
@@ -187,8 +187,8 @@ test('Reject requires a comment, reverses the action, records feedback and enfor
 test('unchanged access is hidden, comments are tooltips, and audit filters retain complete records', async ({ page }) => {
   await page.goto('/');
   await recommend(page);
-  await changeRow(page, 'h-budget', 'Do not grant', 'Budget approval stays with the Finance Director.');
-  await changeRow(page, 'h-bi', 'Remove', 'Finance reporting uses the management dashboard.');
+  await rejectRow(page, 'h-budget', 'Do not grant', 'Budget approval stays with the Finance Director.');
+  await rejectRow(page, 'h-bi', 'Remove', 'Finance reporting uses the management dashboard.');
   await decideAll(page);
   await applyDecisions(page);
   await expect(page.getByLabel('Show unchanged access')).not.toBeChecked();

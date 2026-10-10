@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { accessRow, applyDecisions, assertProductLanguage, changeRow, COMPLETION_NOTE, COMPLETION_REFERENCE, confirmCompletion, decideAll, downloadAudit, nav, provision, recommend } from '../helpers/iga-flow.js';
+import { accessRow, applyDecisions, assertProductLanguage, rejectRow, COMPLETION_NOTE, COMPLETION_REFERENCE, confirmCompletion, decideAll, downloadAudit, nav, provision, recommend } from '../helpers/iga-flow.js';
 
 const storedState = page => page.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')));
 const manualRecords = page => page.locator('[data-audit-category="controlled-task"]');
@@ -36,8 +36,8 @@ test('Lifecycle Events and detail drawers show varied HR dates without changing 
 test('Show unchanged access includes only lifecycle KEEP entitlements alongside actual changes and preserves counts', async ({ page }) => {
   await page.goto('/');
   await recommend(page);
-  await changeRow(page, 'h-budget', 'Do not grant', 'Budget approval remains with the Finance Director.');
-  await changeRow(page, 'h-bi', 'Remove', 'Reporting uses the management dashboard.');
+  await rejectRow(page, 'h-budget', 'Do not grant', 'Budget approval remains with the Finance Director.');
+  await rejectRow(page, 'h-bi', 'Remove', 'Reporting uses the management dashboard.');
   await decideAll(page);
   await applyDecisions(page);
   const changed = ['a-ar', 'a-dashboard', 'h-ar', 'h-bi', 'h-dashboard', 'h-payment', 'h-snow-approver'];

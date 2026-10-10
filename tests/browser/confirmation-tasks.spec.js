@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { accessRow, applyDecisions, changeRow, confirmCompletion, decideAll, expectFullyInViewport, nav, provision, recommend } from '../helpers/iga-flow.js';
+import { accessRow, applyDecisions, rejectRow, confirmCompletion, decideAll, expectFullyInViewport, nav, provision, recommend } from '../helpers/iga-flow.js';
 
 const reviewTask = page => page.getByRole('button', { name: 'Review task', exact: true });
 const taskCount = page => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'My tasks', exact: true }).locator('.nav-count');
@@ -24,7 +24,7 @@ test('confirmation uses the shared agent icon and preserves application alignmen
   for (const changedUsage of [false, true]) {
     if (changedUsage) {
       await page.getByRole('tab', { name: 'AI Agent access', exact: true }).click();
-      await changeRow(page, 'a-inbound', 'Remove', 'Agent usage is temporarily suspended.');
+      await rejectRow(page, 'a-inbound', 'Remove', 'Agent usage is temporarily suspended.');
     }
     await page.getByRole('button', { name: 'Apply decisions', exact: true }).first().click();
     const panel = page.getByRole('dialog', { name: 'Apply access decisions', exact: true });
@@ -115,7 +115,7 @@ test('My tasks has no outstanding action after provisioning when no manual task 
   await decideAll(page);
   for (const id of ['h-legacy', 'a-legacy']) {
     await page.getByRole('tab', { name: id.startsWith('h-') ? 'Human access' : 'AI Agent access', exact: true }).click();
-    await changeRow(page, id, 'Keep', 'Legacy access remains an approved business requirement.');
+    await rejectRow(page, id, 'Keep', 'Legacy access remains an approved business requirement.');
   }
   await applyDecisions(page);
   await page.getByRole('button', { name: 'Run scheduled provisioning', exact: true }).click();

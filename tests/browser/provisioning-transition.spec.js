@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { EDIT_COMMENT, applyDecisions, changeRow, decideAll, expectFullyInViewport, nav, recommend } from '../helpers/iga-flow.js';
+import { EDIT_COMMENT, applyDecisions, rejectRow, decideAll, expectFullyInViewport, nav, recommend } from '../helpers/iga-flow.js';
 
 for (const changes of [7, 6]) {
   test(`provisioning shows committed ${changes}-change success before moving to the manual task`, async ({ page }) => {
     await page.goto('/');
     await recommend(page);
-    if (changes === 6) await changeRow(page, 'h-budget', 'Do not grant', EDIT_COMMENT);
+    if (changes === 6) await rejectRow(page, 'h-budget', 'Do not grant', EDIT_COMMENT);
     await decideAll(page);
     await applyDecisions(page);
     const summary = page.locator('.stats-row.three');

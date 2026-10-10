@@ -24,12 +24,12 @@ function isDecided(access) {
   return Boolean(access.decidedAction) || access.status === 'Policy-locked';
 }
 
-function RowControls({ row, access, applied, required, onAccept, onEdit, onReview, onLocked }) {
+function RowControls({ row, access, applied, required, onAccept, onReject, onReview, onLocked }) {
   if (access.status === 'Policy-locked') return <button className="policy-lock-control" onClick={onLocked}><LockKeyhole size={18} /><span>Locked by policy · View policy</span></button>;
-  if (access.recommendedAction === 'REVIEW') return <Button variant="secondary" disabled={applied} onClick={onReview}>{access.decidedAction ? 'Change' : 'Review'}</Button>;
+  if (access.recommendedAction === 'REVIEW') return <Button variant="secondary" disabled={applied} onClick={onReview}>Review</Button>;
   const selected = !access.decidedAction ? null : access.decidedAction !== access.recommendedAction ? 'reject'
-    : access.decisionSource === 'manual-override' ? 'change' : 'accept';
-  return <div className="recommendation-controls" aria-label={`Actions for ${resourceName(row)}`}><Button variant={selected === 'accept' ? 'quiet' : 'secondary'} aria-pressed={selected === 'accept'} disabled={applied || required || access.status === 'Accepted'} onClick={() => onAccept(row)}>Accept</Button><Button variant="secondary" aria-pressed={selected === 'change'} disabled={applied} onClick={() => onEdit(row, false)}>Change</Button><Button variant={selected === 'reject' ? 'danger' : 'secondary'} aria-pressed={selected === 'reject'} disabled={applied} onClick={() => onEdit(row, true)}>Reject</Button></div>;
+    : access.decisionSource === 'manual-override' ? 'reject' : 'accept';
+  return <div className="recommendation-controls" aria-label={`Actions for ${resourceName(row)}`}><Button variant={selected === 'accept' ? 'quiet' : 'secondary'} aria-pressed={selected === 'accept'} disabled={applied || required || selected === 'accept'} onClick={() => onAccept(row)}>Accept</Button><Button variant={selected === 'reject' ? 'danger' : 'secondary'} aria-pressed={selected === 'reject'} disabled={applied} onClick={() => onReject(row)}>Reject</Button></div>;
 }
 
 function DecisionStatus({ access, hideRecommended = false, hideAccepted = false }) {
@@ -128,16 +128,16 @@ export default function GovernanceDecision({ state, dispatch, navigate }) {
     dispatch({ type: 'ACCEPT_ALL', scope: tab });
     setToast(`${count} recommendation${count === 1 ? '' : 's'} accepted.`);
   }
-  function openEdit(row, deny) {
+  function openReject(row) {
     const access = getAccessDecision(row, state);
-    setEdit({ row, action: deny ? oppositeAction(access) : access.decidedAction || access.recommendedAction, comment: access.comment, reject: deny });
+    setEdit({ row, action: oppositeAction(access), comment: access.comment });
     setEditError(''); setPendingSod(false);
   }
   function saveEdit(event) {
     event.preventDefault();
     if (!edit.comment.trim()) { setEditError('Enter a comment for this decision.'); return; }
     if (edit.row.id === 'h-ar' && edit.action === 'KEEP' && dependency.required) { setPendingSod(true); setEditError(''); return; }
-    const decisionSource = edit.reject && edit.action !== edit.row.recommendedAction ? 'rejected-recommendation' : 'manual-override';
+    const decisionSource = edit.action !== edit.row.recommendedAction ? 'rejected-recommendation' : 'manual-override';
     dispatch({ type: 'DECIDE', rowId: edit.row.id, action: edit.action, comment: edit.comment.trim(), decisionSource });
     setToast(`Decision recorded for ${resourceName(edit.row)}.`);
     setEdit(null); setEditError('');
@@ -181,15 +181,15 @@ export default function GovernanceDecision({ state, dispatch, navigate }) {
     dispatch({ type: 'APPLY_DECISIONS' }); setApplyOpen(false); navigate(3);
   }
   function controls(row) {
-    return <RowControls row={row} access={getAccessDecision(row, state)} applied={state.applied} required={row.id === 'h-ar' && dependency.required} onAccept={accept} onEdit={openEdit} onReview={openReview} onLocked={() => setLockedNotice(true)} />;
+    return <RowControls row={row} access={getAccessDecision(row, state)} applied={state.applied} required={row.id === 'h-ar' && dependency.required} onAccept={accept} onReject={openReject} onReview={openReview} onLocked={() => setLockedNotice(true)} />;
   }
   function editForm(row) {
     if (edit?.row.id !== row.id) return null;
-    return <form className="recommendation-edit" data-change-for={row.id} aria-label={`Change ${resourceName(row)}`} onSubmit={saveEdit}>
+    return <form className="recommendation-edit" data-reject-for={row.id} aria-label={`Reject ${resourceName(row)}`} onSubmit={saveEdit}>
       <div className="recommendation-edit-fields"><div><label className="form-label" htmlFor={`action-${row.id}`}>Decision</label><select id={`action-${row.id}`} value={edit.action} onChange={event => { setEdit({ ...edit, action: event.target.value }); setPendingSod(false); setEditError(''); }}>{allowedActions(getAccessDecision(row, state)).map(action => <option key={action} value={action}>{actionLabel(action)}</option>)}</select></div><div><label className="form-label" htmlFor={`comment-${row.id}`}>Comment</label><input id={`comment-${row.id}`} value={edit.comment} onChange={event => { setEdit({ ...edit, comment: event.target.value }); setEditError(''); }} maxLength={3000} autoFocus required /></div></div>
       {editError && <p className="error-text" role="alert">{editError}</p>}
       {pendingSod && <div className="recommendation-sod" role="alert"><Notice tone="amber" icon={ShieldAlert}><strong>{SOD_MESSAGE}</strong><p>The Keep decision has not been recorded.</p><div className="recommendation-resolution"><Button type="button" variant="secondary" onClick={() => resolveSod('keep-removal')}>Keep removal</Button><Button type="button" variant="danger" onClick={() => resolveSod('deny-payment')}>Deny SAP Payment Approval</Button></div></Notice></div>}
-      <div className="recommendation-edit-actions"><Button type="button" variant="secondary" onClick={() => { setEdit(null); setPendingSod(false); }}>Cancel</Button><Button type="submit">Save change</Button></div>
+      <div className="recommendation-edit-actions"><Button type="button" variant="secondary" onClick={() => { setEdit(null); setPendingSod(false); }}>Cancel</Button><Button type="submit">Record decision</Button></div>
     </form>;
   }
 

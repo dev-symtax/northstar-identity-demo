@@ -239,7 +239,7 @@ function reduceState(state, action) {
         // A conflicting operational permission must be removed before payment approval is activated.
         if (row.id === 'h-payment' && action === 'GRANT' && !paymentActivationAllowed(tasks)) return;
         status = action === 'REMOVE' ? 'Removed' : 'Granted';
-        detail = { method: row.scope === 'outbound' ? 'Agent permission API' : 'Application connector API', owner: 'Identity Operations', sla: 'Effective date · 08:00 UTC', reference: `API-0842-${row.id.toUpperCase()}` };
+        detail = { method: row.scope === 'outbound' ? 'Agent permission API' : 'Application connector API', owner: 'Identity Operations', sla: SCENARIO.scheduledRun.replace(/^Monday, /, ''), reference: `API-0842-${row.id.toUpperCase()}` };
         if (row.id === 'h-payment' && action === 'GRANT') detail.dependency = {
           policyId: 'POL-SOD-017', rowId: AR_ROW.id, status: tasks[AR_ROW.id].status,
           completionReference: evidence.find(record => record.rowId === AR_ROW.id && record.status === 'Removed').reference,

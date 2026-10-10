@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { REVIEW_COMMENT, accessRow, acceptAll, applyDecisions, changeRow, confirmCompletion, decidePayment, downloadAudit, nav, provision, recommend } from './iga-flow.js';
+import { REVIEW_COMMENT, accessRow, acceptAll, applyDecisions, rejectRow, confirmCompletion, decidePayment, downloadAudit, nav, provision, recommend } from './iga-flow.js';
 
 const saved = page => page.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')));
 const retainedComment = 'Month-end receivables responsibility is retained.';
@@ -15,7 +15,7 @@ export async function exerciseApprovalFirstSod(page) {
   await acceptAll(page, 'human');
   expect((await saved(page)).accessDecisions['h-ar']).toEqual(approved.accessDecisions['h-ar']);
   for (const resolution of ['Keep removal', 'Deny SAP Payment Approval']) {
-    await changeRow(page, 'h-ar', 'Keep', retainedComment);
+    await rejectRow(page, 'h-ar', 'Keep', retainedComment);
     const alert = page.locator('.recommendation-sod');
     await expect(alert).toContainText('POL-SOD-017 prevents Accounts Receivable Operator and SAP Payment Approval from being active together.');
     expect((await saved(page)).accessDecisions['h-ar']).toEqual(approved.accessDecisions['h-ar']);
@@ -53,7 +53,7 @@ export async function exerciseKeepFirstSod(page, resolution) {
   await expect(page.locator('.exception-panel')).toContainText('SOD CONFLICT · REVIEW REQUIRED');
   await expect(page.locator('main')).not.toContainText('POLICY VIOLATION');
   await expect(accessRow(page, 'h-ar')).toContainText('Recommended');
-  await changeRow(page, 'h-ar', 'Keep', retainedComment);
+  await rejectRow(page, 'h-ar', 'Keep', retainedComment);
   const kept = (await saved(page)).accessDecisions['h-ar'];
   await expect(accessRow(page, 'h-ar').getByRole('button', { name: 'Reject', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await acceptAll(page, 'human');

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { REVIEW_COMMENT, accessRow, acceptAll, applyDecisions, assertProductLanguage, changeRow, decidePayment, expandConnected, nav, provision, recommend } from '../helpers/iga-flow.js';
+import { REVIEW_COMMENT, accessRow, acceptAll, applyDecisions, assertProductLanguage, rejectRow, decidePayment, expandConnected, nav, provision, recommend } from '../helpers/iga-flow.js';
 
 const stored = page => page.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')));
 const humanApprovals = state => state.decisionEvidence.filter(record => record.rowId === 'h-payment' && record.decidedAction === 'GRANT');
@@ -26,7 +26,7 @@ test('payment approval confirms the saved decision, survives navigation and relo
     await expect(page.locator('.exception-panel').getByRole('button', { name: /^(Approve|Deny)$/ })).toHaveCount(0);
     await expect(accessRow(page, 'h-payment')).toContainText('Accepted');
     await expect(accessRow(page, 'h-payment')).toContainText('Grant');
-    await expect(accessRow(page, 'h-payment').getByRole('button', { name: 'Review', exact: true })).toHaveCount(0);
+    await expect(accessRow(page, 'h-payment').getByRole('button', { name: 'Review', exact: true })).toBeVisible();
   };
   await assertSavedReview();
   await nav(page, 'Provisioning');
@@ -37,7 +37,7 @@ test('payment approval confirms the saved decision, survives navigation and relo
   await assertSavedReview();
   expect((await stored(page)).accessDecisions['h-payment']).toEqual(approved.accessDecisions['h-payment']);
   // Reconfirming an existing decision is a no-op, including its evidence and toast.
-  await accessRow(page, 'h-payment').getByRole('button', { name: 'Change', exact: true }).click();
+  await accessRow(page, 'h-payment').getByRole('button', { name: 'Review', exact: true }).click();
   await expect(review.getByLabel('Comment', { exact: true })).toHaveValue(REVIEW_COMMENT);
   await review.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(review).toHaveCount(0);
@@ -85,11 +85,14 @@ test('recommendation spacing, agent action alignment and audit identity icons ar
   });
   expect(await aligned()).toBe(true);
   await usage.getByRole('button', { name: 'Accept', exact: true }).click();
-  const assertAcceptedUsage = async () => {
+  const assertAcceptedUsage = async (manual = false) => {
     await expect(usage).not.toContainText('Accepted');
     await expect(usage.getByText('Keep', { exact: true })).toHaveCount(1);
     await expect(usage.locator('.recommendation-usage-actions > .badge')).toHaveClass(/green/);
-    await expect(usage.getByRole('button', { name: 'Accept', exact: true })).toBeDisabled();
+    await expect(usage.getByRole('button', { name: 'Accept', exact: true })).toHaveAttribute('aria-pressed', String(!manual));
+    await expect(usage.getByRole('button', { name: 'Reject', exact: true })).toHaveAttribute('aria-pressed', String(manual));
+    if (manual) await expect(usage.getByRole('button', { name: 'Accept', exact: true })).toBeEnabled();
+    else await expect(usage.getByRole('button', { name: 'Accept', exact: true })).toBeDisabled();
     expect((await stored(page)).accessDecisions['a-inbound']).toMatchObject({ status: 'Accepted', decidedAction: 'KEEP' });
     expect(await aligned()).toBe(true);
   };
@@ -98,11 +101,11 @@ test('recommendation spacing, agent action alignment and audit identity icons ar
   await recommend(page);
   await page.getByRole('tab', { name: 'AI Agent access', exact: true }).click();
   await assertAcceptedUsage();
-  await changeRow(page, 'a-inbound', 'Remove', 'Agent usage is temporarily suspended.');
+  await rejectRow(page, 'a-inbound', 'Remove', 'Agent usage is temporarily suspended.');
   await expect(usage).toContainText('Changed from Keep to Remove');
   await expect(usage).toContainText('Agent usage is temporarily suspended.');
-  await changeRow(page, 'a-inbound', 'Keep', 'Agent usage remains approved.');
-  await assertAcceptedUsage();
+  await rejectRow(page, 'a-inbound', 'Keep', 'Agent usage remains approved.');
+  await assertAcceptedUsage(true);
   await expect(usage).toContainText('Agent usage remains approved.');
   expect(await aligned()).toBe(true);
   await nav(page, 'Audit trail');

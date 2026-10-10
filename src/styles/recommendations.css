@@ -3,7 +3,6 @@
 .recommendations-screen .recommendation-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; min-width: 130px; }
 .recommendations-screen .recommendation-controls .text-link { font-size: 10px; }
 .recommendations-screen .recommendation-controls .button[aria-pressed="true"] { opacity: 1; }
-.recommendations-screen .recommendation-controls .button.secondary[aria-pressed="true"] { color: var(--teal); background: var(--mint); border-color: var(--mint-border); }
 .recommendations-screen .recommendation-controls .button.danger[aria-pressed="true"] { background: var(--red-surface); }
 .recommendations-screen .recommendation-lock { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 9px; }
 .recommendations-screen .recommendation-status { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 130px; }

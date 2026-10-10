@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 import {
-  accessRow, acceptAll, applyDecisions, changeRow, confirmCompletion,
+  accessRow, acceptAll, applyDecisions, rejectRow, confirmCompletion,
   decidePayment, downloadAudit, nav, provision, recommend,
 } from './iga-flow.js';
 
@@ -19,12 +19,12 @@ async function assertSelections(page, scope) {
   await expect(row.getByRole('button', { name: 'Reject', exact: true })).toHaveCSS('background-color', 'rgb(251, 241, 240)');
   await expect(row.getByRole('button', { name: 'Reject', exact: true })).toHaveCSS('color', 'rgb(156, 79, 75)');
   await expect(row.getByRole('button', { name: 'Accept', exact: true })).toHaveAttribute('aria-pressed', 'false');
-  await expect(row.getByRole('button', { name: 'Change', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await expect(row.locator('.recommendation-controls button')).toHaveText(['Accept', 'Reject']);
   await expect(row.locator('.recommendation-controls button[aria-pressed="true"]')).toHaveCount(1);
   await expect(row.getByRole('button', { name: 'Accept', exact: true })).toHaveClass(/secondary/);
   const reporting = accessRow(page, reportingId(scope));
   await expect(reporting).toContainText(keepComment(scope));
-  await expect(reporting.getByRole('button', { name: 'Change', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(reporting.getByRole('button', { name: 'Reject', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(reporting.getByRole('button', { name: 'Accept', exact: true })).toHaveAttribute('aria-pressed', 'false');
   const accepted = accessRow(page, scope === 'human' ? 'h-sap' : 'a-bi');
   await expect(accepted.getByRole('button', { name: 'Accept', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -40,16 +40,13 @@ export async function exerciseRecommendationOverrides(page, method, afterReload 
   for (const scope of ['human', 'agent']) {
     await page.getByRole('tab', { name: scope === 'human' ? 'Human access' : 'AI Agent access', exact: true }).click();
     await accessRow(page, scope === 'human' ? 'h-sap' : 'a-bi').getByRole('button', { name: 'Accept', exact: true }).click();
-    await changeRow(page, reportingId(scope), 'Keep', keepComment(scope));
-    if (method === 'Change') {
-      await changeRow(page, dashboardId(scope), 'Do not grant', dashboardComment(scope));
-    } else {
-      await accessRow(page, dashboardId(scope)).getByRole('button', { name: 'Reject', exact: true }).click();
-      const form = page.locator(`[data-change-for="${dashboardId(scope)}"]`);
-      await expect(form.getByLabel('Decision', { exact: true })).toHaveValue('DO_NOT_GRANT');
-      await form.getByLabel('Comment', { exact: true }).fill(dashboardComment(scope));
-      await form.getByRole('button', { name: 'Save change', exact: true }).click();
-    }
+    await rejectRow(page, reportingId(scope), 'Keep', keepComment(scope));
+    if (method === 'accepted recommendations') await accessRow(page, dashboardId(scope)).getByRole('button', { name: 'Accept', exact: true }).click();
+    await accessRow(page, dashboardId(scope)).getByRole('button', { name: 'Reject', exact: true }).click();
+    const form = page.locator(`[data-reject-for="${dashboardId(scope)}"]`);
+    await expect(form.getByLabel('Decision', { exact: true })).toHaveValue('DO_NOT_GRANT');
+    await form.getByLabel('Comment', { exact: true }).fill(dashboardComment(scope));
+    await form.getByRole('button', { name: 'Record decision', exact: true }).click();
     await assertSelections(page, scope);
     const before = await stored(page);
     await acceptAll(page, scope);
@@ -63,10 +60,10 @@ export async function exerciseRecommendationOverrides(page, method, afterReload 
         expect(after.accessDecisions[id]).toMatchObject({ decidedAction: model.recommendedAction, decisionSource: 'accepted-recommendation' });
       }
     }
-    expect(after.accessDecisions[dashboardId(scope)].decisionSource).toBe(method === 'Change' ? 'manual-override' : 'rejected-recommendation');
-    await accessRow(page, dashboardId(scope)).getByRole('button', { name: 'Change', exact: true }).click();
-    await expect(page.locator(`[data-change-for="${dashboardId(scope)}"]`).getByLabel('Comment', { exact: true })).toHaveValue(dashboardComment(scope));
-    await page.locator(`[data-change-for="${dashboardId(scope)}"]`).getByRole('button', { name: 'Cancel', exact: true }).click();
+    expect(after.accessDecisions[dashboardId(scope)].decisionSource).toBe('rejected-recommendation');
+    await accessRow(page, dashboardId(scope)).getByRole('button', { name: 'Reject', exact: true }).click();
+    await expect(page.locator(`[data-reject-for="${dashboardId(scope)}"]`).getByLabel('Comment', { exact: true })).toHaveValue(dashboardComment(scope));
+    await page.locator(`[data-reject-for="${dashboardId(scope)}"]`).getByRole('button', { name: 'Cancel', exact: true }).click();
     if (scope === 'human') {
       expect(after.accessDecisions['h-payment'].decidedAction).toBeNull();
       await decidePayment(page);
@@ -119,7 +116,7 @@ export async function exerciseRecommendationOverrides(page, method, afterReload 
     const row = accessRow(page, dashboardId(scope));
     await expect(row).toContainText('Recommended');
     await expect(row.getByRole('button', { name: 'Reject', exact: true })).toHaveAttribute('aria-pressed', 'false');
-    await expect(row.getByRole('button', { name: 'Change', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    await expect(row.locator('.recommendation-controls button')).toHaveText(['Accept', 'Reject']);
     expect((await stored(page)).accessDecisions[dashboardId(scope)]).toMatchObject({ decidedAction: null, comment: '', decisionSource: 'undecided' });
   }
 }
