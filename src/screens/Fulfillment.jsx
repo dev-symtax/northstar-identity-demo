@@ -1,13 +1,13 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { ArrowRight, Bot, Check, CheckCircle2, ChevronDown, Clock3, ClipboardCheck, FileCheck2, Play, Server, ShieldCheck, Zap } from 'lucide-react';
-import { decisions, resourceName, entitlementById, applicationById } from '../data/catalog.js';
+import { decisions, resourceName, entitlementById } from '../data/catalog.js';
+import { ApplicationName } from '../components/ApplicationIcon.jsx';
 import { SCENARIO } from '../data/scenario.js';
-import { actionLabel, fulfillmentStatus, getAccessDecision, legacyTaskRows } from '../demo/state.js';
-import { Badge, Button, Drawer, Empty, Field, Notice, PageTitle, SectionTitle, Stat } from '../components/UI.jsx';
+import { actionLabel, connectedChangeSummary, fulfillmentStatus, getAccessDecision, legacyTaskRows } from '../demo/state.js';
+import { Badge, Button, CommentTooltip, Drawer, Empty, Field, Notice, PageTitle, SectionTitle, Stat } from '../components/UI.jsx';
 import { useStepFocus } from '../components/useStepFocus.js';
 import '../styles/provisioning-audit.css';
 
-const completedStatuses = new Set(['Retained', 'Granted', 'Removed', 'Not granted', 'Not permitted by policy']);
 function identityLabel(row) {
   return row.scope === 'human' ? 'Sarah Miller' : row.scope === 'inbound' ? 'Sarah Miller · Agent usage' : 'Finance Operations Agent';
 }
@@ -18,6 +18,8 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [connectedExpanded, setConnectedExpanded] = useState(false);
+  const [showUnchanged, setShowUnchanged] = useState(false);
+  const [completionToast, setCompletionToast] = useState(false);
   const legacyRef = useRef(null);
   const openLegacy = legacyTaskRows(state);
   const legacyRows = decisions.filter(row => row.entitlement === 'legacy-write' && getAccessDecision(row, state).decidedAction === 'REMOVE');
@@ -31,9 +33,10 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   useStepFocus(legacyRef, state.fulfillmentStarted && hasManualTask);
   const closeTask = useCallback(() => setTaskOpen(false), []);
   const apiRows = decisions.filter(row => row.entitlement !== 'legacy-write');
-  const completeApi = apiRows.filter(row => completedStatuses.has(state.tasks[row.id]?.status)).length;
+  const changeSummary = connectedChangeSummary(state);
+  const tableRows = apiRows.filter(row => { const action = getAccessDecision(row, state).decidedAction; return action !== 'NOT_PERMITTED' && (action !== 'KEEP' || showUnchanged); });
   const connectedChanges = apiRows.filter(row => ['GRANT', 'REMOVE'].includes(getAccessDecision(row, state).decidedAction));
-  const showConnected = !state.fulfillmentStarted || connectedExpanded;
+  const showConnected = connectedExpanded;
 
   if (!state.applied) return <>
     <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description="Applied access decisions generate changes scheduled for the effective date." />
@@ -54,6 +57,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
     event.preventDefault();
     if (!reference.trim() || !note.trim()) { setError('A completion reference and verification note are required.'); return; }
     dispatch({ type: 'COMPLETE_LEGACY', reference, note });
+    setCompletionToast(true);
     setTaskOpen(false);
   }
   function provision() {
@@ -63,31 +67,36 @@ export default function Fulfillment({ state, dispatch, navigate }) {
 
   return <>
     <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description={`Applied access decisions are scheduled for ${SCENARIO.effectiveDate}.`} action={state.fulfillmentStarted ? <Button variant="secondary" icon={ArrowRight} onClick={() => navigate(4)}>View audit trail</Button> : <Button icon={Play} onClick={provision}>Provision changes</Button>} />
+    <p className="provisioning-run-date">Run date: Monday, 19 Oct 2026 · 08:00 UTC</p>
+    <ol className="provisioning-status" aria-label="Provisioning status">{['Scheduled', 'Provisioned', hasManualTask ? 'Manual task open' : 'No manual task', 'Complete'].map((label, index) => { const current = !state.fulfillmentStarted ? 0 : openLegacy.length ? 2 : 3; return <li key={label} className={index === current ? 'current' : index < current ? 'done' : ''}><span>{index < current ? <Check size={16} /> : index + 1}</span>{label}</li>; })}</ol>
+    {completionToast && <div className="recorded-toast" role="status">Completion recorded for SN-TASK-004812.</div>}
     <div className={`fulfillment-banner ${state.fulfillmentStarted && !openLegacy.length ? 'complete' : ''}`}>
       <div className="banner-icon">{state.fulfillmentStarted && !openLegacy.length ? <CheckCircle2 size={26} /> : <Clock3 size={26} />}</div>
       <div><h2>{state.fulfillmentStarted ? `Role access provisioned. ${openLegacy.length ? '1 manual task open.' : 'No manual tasks open.'}` : `Changes scheduled for ${SCENARIO.effectiveDate}.`}</h2><p>{state.fulfillmentStarted ? 'Automated results and manual task status are recorded against the applied access decisions.' : 'No access has changed. Provisioning starts when the scheduled changes are run.'}</p></div>
       <Badge tone={state.fulfillmentStarted && !openLegacy.length ? 'green' : 'amber'}>{state.fulfillmentStarted ? openLegacy.length ? 'Task open' : 'Complete' : 'Scheduled'}</Badge>
     </div>
     <div className="stats-row three">
-      <Stat label="Automated results" value={`${completeApi} / ${apiRows.length}`} detail={`${connectedChanges.length} connected access changes`} icon={Zap} />
+      <Stat label="Changes provisioned" value={`${changeSummary.completed} of ${changeSummary.total}`} detail="changes provisioned" icon={Zap} />
       <Stat label="Manual tasks" value={!hasManualTask ? '0' : legacyComplete ? 'Complete' : state.fulfillmentStarted ? '1 open' : '1 scheduled'} detail={hasManualTask ? manualScope : 'No manual changes selected'} icon={ClipboardCheck} />
       <Stat label="Effective date" value="19 Oct 2026" detail="Monday · 08:00 UTC" icon={Clock3} />
     </div>
     <section className="panel provisioning-connected">
-      <SectionTitle title="Connected applications · automated" description={state.fulfillmentStarted ? `${completeApi} results recorded · ${connectedChanges.length} access changes` : 'Scheduled actions from the applied decisions'}>
-        {state.fulfillmentStarted && <button type="button" className="text-link" aria-expanded={showConnected} onClick={() => setConnectedExpanded(value => !value)}>{showConnected ? 'Hide results' : 'Show results'}<ChevronDown size={14} /></button>}
+      <SectionTitle title="Connected applications · automated" description={`${changeSummary.completed} of ${changeSummary.total} changes provisioned`}>
+        <button type="button" className="text-link" aria-expanded={showConnected} onClick={() => setConnectedExpanded(value => !value)}>{showConnected ? 'Hide results' : 'Show results'}<ChevronDown size={14} /></button>
         <Badge tone="blue">{state.fulfillmentStarted ? 'Completed' : 'Scheduled'}</Badge>
       </SectionTitle>
-      {showConnected && <table><thead><tr><th>Access</th><th>Identity</th><th>Application</th><th>Decided action</th><th>Status</th></tr></thead><tbody>{apiRows.map(row => <tr key={row.id} data-row-id={row.id}>
-        <td><strong>{resourceName(row)}</strong></td><td><span className="scope-label">{row.scope !== 'human' && <Bot size={14} />}{identityLabel(row)}</span></td><td>{row.entitlement ? applicationById[entitlementById[row.entitlement].app].name : 'AI agent'}</td>
-        <td><Badge>{actionLabel(getAccessDecision(row, state).decidedAction)}</Badge>{getAccessDecision(row, state).comment && <small className="cell-subtitle">{getAccessDecision(row, state).comment}</small>}</td><td><Badge>{fulfillmentStatus(row, state)}</Badge></td>
+      <label className="unchanged-toggle"><input type="checkbox" checked={showUnchanged} onChange={event => { setShowUnchanged(event.target.checked); setConnectedExpanded(true); }} />Show unchanged access</label>
+      {showConnected && <table><thead><tr><th>Access</th><th>Identity</th><th>Application</th><th>Decided action</th><th>Status</th></tr></thead><tbody>{tableRows.map(row => <tr key={row.id} data-row-id={row.id}>
+        <td><strong>{resourceName(row)}</strong></td><td><span className="scope-label">{row.scope !== 'human' && <Bot size={14} />}{identityLabel(row)}</span></td><td>{row.entitlement ? <ApplicationName appId={entitlementById[row.entitlement].app} /> : 'AI agent'}</td>
+        <td><Badge>{actionLabel(getAccessDecision(row, state).decidedAction)}</Badge>{getAccessDecision(row, state).comment && <CommentTooltip comment={getAccessDecision(row, state).comment} />}</td><td><Badge>{fulfillmentStatus(row, state)}</Badge></td>
       </tr>)}</tbody></table>}
+      <div className="policy-count-line"><ShieldCheck size={18} /><span>1 permission not permitted by policy · POL-AI-303</span></div>
       <div className="access-bottom"><ShieldCheck size={16} /><span>{getAccessDecision(decisions.find(row => row.id === 'h-payment'), state).decidedAction === 'GRANT' ? 'POL-SOD-017 · Accounts Receivable Operator is removed before SAP Payment Approval is granted.' : 'POL-SOD-017 · Accounts Receivable Operator and SAP Payment Approval cannot be held together.'}</span></div>
     </section>
-    <section className="panel legacy-panel" ref={legacyRef}>
-      <SectionTitle title="Disconnected application · manual task" description="Legacy Finance DB"><Badge tone={!hasManualTask || legacyComplete ? 'green' : 'amber'}>{!hasManualTask ? 'Not required' : legacyComplete ? 'Complete' : state.fulfillmentStarted ? 'Task open' : 'Scheduled'}</Badge></SectionTitle>
+    <section className={`panel legacy-panel ${hasManualTask && !legacyComplete ? 'task-attention' : ''}`} ref={legacyRef}>
+      <SectionTitle title="Disconnected application · manual task" description={<ApplicationName appId="legacy" />}><Badge tone={!hasManualTask || legacyComplete ? 'green' : 'amber'}>{!hasManualTask ? 'Not required' : legacyComplete ? 'Complete' : state.fulfillmentStarted ? 'Task open' : 'Scheduled'}</Badge></SectionTitle>
       {hasManualTask ? <div className="legacy-task">
-        <div className="legacy-task-title"><span className="legacy-icon"><Server size={24} strokeWidth={1.4} /></span><div><span className="eyebrow">SN-TASK-004812 · MANUAL TASK</span><h3>Remove Finance database write access</h3><p>{revocationDescription}</p></div></div>
+        <div className="legacy-task-title"><span className="legacy-icon"><Server size={24} strokeWidth={1.4} /></span><div><span className="task-source"><ApplicationName appId="snow" indicator={false} /><span>· SN-TASK-004812</span></span><h3>Remove Finance database write access</h3><p>{revocationDescription}</p></div></div>
         <div className="task-details">
           <div><span>OWNER</span><strong>Martin Keller</strong><small>Finance Platforms</small></div>
           <div><span>SLA / DUE</span><strong>{SCENARIO.legacyDue}</strong><small>4 hours from the effective-date run</small></div>
@@ -97,7 +106,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
         <div className="task-action"><p>{legacyComplete ? 'The completion reference and verification note are recorded for the selected removals.' : 'The task remains open until the selected access removals are verified.'}</p><Button variant="secondary" icon={FileCheck2} disabled={!state.fulfillmentStarted || !openLegacy.length} onClick={openTask}>{legacyComplete ? 'Completion confirmed' : 'Confirm completion'}</Button></div>
       </div> : <div className="manual-not-required"><p>Legacy Finance DB Write was retained for the user and AI agent. No manual removal task is required.</p></div>}
     </section>
-    <Notice>Payment approval is restricted to human identities (POL-AI-303).</Notice>
+    <p className="provisioning-policy-note">Payment approval is restricted to human identities (POL-AI-303).</p>
     {taskOpen && <Drawer title="Confirm completion" subtitle="MANUAL TASK · SN-TASK-004812" onClose={closeTask}>
       <Notice>Confirm the selected database write removals and record verification.</Notice>
       <dl><Field label="Task">SN-TASK-004812</Field><Field label="Owner">Martin Keller · Finance Platforms</Field><Field label="Due">{SCENARIO.legacyDue}</Field><Field label="Scope">{manualScope}</Field><Field label="Required verification">{revocationDescription}</Field></dl>

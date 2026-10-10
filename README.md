@@ -17,27 +17,27 @@ The cloud checkout is `/workspace/northstar-identity-demo`. If necessary, use `-
 
 ## Decisions and provisioning
 
-Each recommendation stores its policy, reason, chosen action, status, reviewer, UTC timestamp and comment. Standard recommendations can be accepted individually or by scope. Overrides and denials require comments. Existing access can be kept or removed; new access can be granted or withheld. Agent usage follows the same decision model.
+Each recommendation stores its policy, reason, chosen action, status, reviewer, UTC timestamp and comment. Standard recommendations can be accepted individually or by scope. Overrides and rejections require comments. Reject opens the same editor as Change with the opposite action selected; a comment is required. Existing access can be kept or removed; new access can be granted or withheld. Agent usage follows the same decision model.
 
 SAP Payment Approval requires explicit review under POL-RISK-204. POL-SOD-017 prevents keeping Accounts Receivable Operator while payment approval is pending or approved. Resolve the conflict by removing receivables access or denying payment approval. Agent payment approval is locked by POL-AI-303 and cannot be overridden.
 
-**Apply decisions** stays disabled until all 14 records are decided and the policy violation is resolved. Its confirmation summarizes actions and applications. Applying schedules the chosen decisions and freezes their values; it does not provision access. **Provision changes** advances the clock to Monday, 19 October at 08:00 UTC, executes removals before conflicting grants, and creates a manual task only for legacy removals actually chosen. Human and agent scopes can differ. The ServiceNow task is due at 12:00 UTC. **Confirm completion** records the editable completion reference and verification note for its actual scope.
+**Apply decisions** stays disabled until all 14 records are decided and the policy violation is resolved. Its confirmation summarizes actions and applications. Applying schedules the chosen decisions and freezes their values; it does not provision access. **Provision changes** runs the scheduled operation on Monday, 19 October at 08:00 UTC, executes removals before conflicting grants, and creates a manual task only for legacy removals actually chosen. Human and agent scopes can differ. The global Today date remains Tuesday, 13 October throughout the session; the Provisioning header reports the separate run date. The connected change count includes only actual grants and removals, excluding unchanged access, withheld grants, locked permissions and manual removals. The default is 0 of 6 before the run and 6 of 6 after; withholding Budget Approval gives 5 of 5. Connected results are collapsed, and unchanged access is hidden unless selected. Review comments open as tooltips. The ServiceNow task is due at 12:00 UTC. **Confirm completion** records the editable completion reference and verification note for its actual scope.
 
-The audit trail separates recommendations, final decisions and comments from provisioning methods, statuses, owners, SLAs and references. It defaults to five key records and can show all 14 current records or their full history. JSON export includes the complete trails regardless of the table filter.
+The audit trail separates recommendations, final decisions and comments from provisioning methods, statuses, owners, SLAs and references. It defaults to five key records, with Overrides, Policy-locked, Manual tasks and All (14) filters, plus full history. JSON export includes the complete trails regardless of the table filter.
 
 ## Operator controls and 10-minute guide
 
 These controls have no visible entry points in the application:
 
 - **Shift+G** opens the 10-minute guide. Escape closes it.
-- **Shift+R** restores original access, clears decisions and provisioning, and returns to Identity overview.
+- **Shift+R** restores original access, clears decisions and provisioning, and returns to Overview.
 - **`?reset=1`** performs the same reset on load and removes the parameter from the URL.
 
 1. **Identity · 1 min:** inspect Sarah's current access and the AI agent identity owned by Sarah. Explain agent usage and agent permissions.
-2. **Lifecycle event · 1 min:** inspect the source event, effective date, affected access and policies. Click **Review access recommendations**.
+2. **Lifecycle event · 1 min:** open Lifecycle events and select Sarah Miller, then inspect the source event, effective date, affected access and policies. Click **Review access recommendations**.
 3. **Recommendations · 3 min:** accept standard recommendations on both tabs. Review SAP Payment Approval and click **Approve** with a comment. Show the locked agent payment permission. Demonstrate an override or SoD conflict if needed. Click **Apply decisions**, inspect its summary and apply.
 4. **Provisioning · 2 min:** inspect scheduled decisions, then click **Provision changes**. Check automated results and the manual task. Click **Confirm completion**, edit the reference or verification note if needed, and confirm.
-5. **Audit trail · 2 min:** inspect the five key records in **Decisions** and **Provisioning**, including comments and completion references. Show all records and export JSON.
+5. **Audit trail · 2 min:** inspect the five key records in **Decisions** and **Provisioning**, including comments and completion references. Select All (14), inspect the filters and export JSON.
 6. **Outcomes · 1 min:** discuss security, HR and architecture outcomes in the presentation. Meridian's 72% baseline and 95% target are program measures; one role change does not establish an enterprise-wide result.
 
 ## Standalone offline export
@@ -46,7 +46,7 @@ These controls have no visible entry points in the application:
 npm run build:standalone
 ```
 
-The sole output is **`dist-standalone/index.html`**. The separate Vite configuration uses `vite-plugin-singlefile` to inline JavaScript, CSS and imported assets. Both local Plus Jakarta Sans WOFF2 files are embedded as data URIs; icons are inline SVG. The font copyright and full SIL Open Font License are embedded in a non-executable JSON element. No external fonts, scripts, styles, APIs or analytics are used. The standalone build does not overwrite `dist/`.
+The sole output is **`dist-standalone/index.html`**. The separate Vite configuration uses `vite-plugin-singlefile` to inline JavaScript, CSS and imported assets. Both local Plus Jakarta Sans WOFF2 files are embedded as data URIs; icons and the favicon are inline SVG. Both optimized 192×192 portraits are embedded as JPEG data URIs. The font copyright and full SIL Open Font License are embedded in a non-executable JSON element. No external fonts, scripts, styles, APIs or analytics are used. The standalone build does not overwrite `dist/`.
 
 Open the HTML directly where browser policy allows it. This cloud environment's managed Chromium blocks `file://` with `ERR_BLOCKED_BY_ADMINISTRATOR`; direct opening cannot be validated here. The simplest fully offline fallback is:
 
@@ -76,4 +76,13 @@ Coverage includes the complete approval/apply/provision/complete/audit/reset pat
 
 Colors, typography and layout language retain the Meridian visual identity: local Plus Jakarta Sans, navy `#0B1530`, teal `#0B7A6E`, bright teal `#19C3B1`, and mint `#E6F4F1`. Tokens are in `src/styles/tokens.css`. Font files are in `src/assets/fonts/`; local `@font-face` declarations are in `src/styles/fonts.css`. The font license is in `public/fonts/PLUS-JAKARTA-SANS-LICENSE.txt`.
 
-Sarah is the interactive scenario. The other 47 identities, 12 applications, 40 entitlements, four agents and four lifecycle events retain inspectable directory data. The policy rules implement this scenario rather than a general-purpose policy engine.
+Sarah is the interactive scenario. The other 47 identities, 12 applications, 40 entitlements, four agents and four mover events retain inspectable directory data. The sidebar adds populated read-only tasks, lifecycle events (four movers, three joiners and two leavers), requests, certifications, policies, roles, agents, applications, connectors, Workday source, audit activity and reports. Rows open detail drawers; Sarah’s event opens the decision path. Reports distinguish the 72% baseline and 95% program target from one role change. The policy rules implement this scenario rather than a general-purpose policy engine.
+
+
+## Portraits and application assets
+
+Patrick Sena and Sarah Miller are the only identities with photos. The supplied originals are stored as optimized local JPEGs in `src/assets/people/`: Patrick is 5,427 bytes and Sarah is 9,508 bytes, each 192×192. Circular rendering uses centered `object-fit: cover`. Patrick appears in both profile controls, the factual profile popover and recorded-decision actors; Sarah appears in the global identity header and scenario screens. Other identities retain initials.
+
+No official application logo files were supplied. The five replaceable slots (`sap`, `servicenow`, `workday`, `microsoft-power-bi`, `microsoft-entra-id`) therefore use neutral category icons and initials, including ServiceNow on the manual task. No brand marks were recreated. `src/data/assets.js` is the asset registry; `src/assets/logos/README.md` describes local replacement. Finance Hub uses a generic finance icon, Legacy Finance DB a database icon and Manual badge, and API applications a Connected indicator.
+
+The normal development and production commands are unchanged. All changes belong to source; generated HTML is rebuilt. Browser acceptance checks cover every sidebar page and detail drawer, event filters, portraits/profile/title/favicon, Reject/comment/SoD behavior, 40px controls, reduced motion, actual provisioning counts, unchanged-access toggling and audit filters, alongside the original full-path regression checks.

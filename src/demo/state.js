@@ -223,6 +223,10 @@ export function fulfillmentStatus(row, state) {
 export function legacyTaskRows(state) {
   return decisions.filter(row => row.entitlement === 'legacy-write' && state.tasks[row.id]?.status === 'Task open');
 }
+export function connectedChangeSummary(state) {
+  const rows = decisions.filter(row => row.entitlement !== 'legacy-write' && ['GRANT', 'REMOVE'].includes(getAccessDecision(row, state).decidedAction));
+  return { total: rows.length, completed: rows.filter(row => ['Granted', 'Removed'].includes(state.tasks[row.id]?.status)).length };
+}
 export function readiness(state) {
   return state.fulfillmentStarted && decisions.filter(row => getAccessDecision(row, state).decidedAction === 'GRANT').every(row => state.tasks[row.id]?.status === 'Granted');
 }

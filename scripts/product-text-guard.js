@@ -1,6 +1,6 @@
 import { parse } from '@babel/parser';
 
-const forbidden = /\b(?:demo\w*|presenter\w*|synthetic|sample\w*|story|stories)\b|Did we cover|Access starts with context|Every permission has a decision|Every decision has a reason|Consistent governance|Practical fulfillment|Explain the decision|Prove the control|Two distinct evidence trails|When business context changes|People\. Agents\. Applications\.|WHY THIS MATTERS TO MERIDIAN|Change is accelerating|Control must keep pace/i;
+const forbidden = /\b(?:demo\w*|presenter\w*|synthetic|sample\w*|story|stories)\b|coming soon|Identity intelligence|Did we cover|Access starts with context|Every permission has a decision|Every decision has a reason|Consistent governance|Practical fulfillment|Explain the decision|Prove the control|Two distinct evidence trails|When business context changes|People\. Agents\. Applications\.|WHY THIS MATTERS TO MERIDIAN|Change is accelerating|Control must keep pace/i;
 const internalAttributes = new Set(['className', 'class', 'id', 'key', 'ref', 'href', 'src', 'type', 'htmlFor', 'data-row-id']);
 const visibleProperties = new Set(['children', 'title', 'subtitle', 'description', 'label', 'placeholder', 'aria-label', 'aria-description', 'alt', 'reason', 'why', 'method', 'status', 'comment']);
 

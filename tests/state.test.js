@@ -5,7 +5,7 @@ import { SCENARIO, REVIEWER } from '../src/data/scenario.js';
 import {
   initialState, demoReducer as reduce, getAccessDecision, actionLabel, canApplyDecisions,
   decisionSummary, fulfillmentStatus, legacyTaskRows, humanAccess, agentAccess,
-  readiness, controlComplete, restoreState, STORAGE_KEY,
+  readiness, connectedChangeSummary, controlComplete, restoreState, STORAGE_KEY,
 } from '../src/demo/state.js';
 
 const row = id => decisions.find(item => item.id === id);
@@ -335,4 +335,14 @@ test('reset restores initial recommendations, access and both audit trails', () 
   assert.deepEqual(reset, initialState());
   assert.equal(humanAccess(reset).length, 4);
   assert.equal(agentAccess(reset).length, 4);
+});
+
+
+test('connected change counts exclude unchanged access, policy locks and manual removals, and follow overrides', () => {
+  assert.deepEqual(connectedChangeSummary(apply(readyToApply())), { total: 6, completed: 0 });
+  assert.deepEqual(connectedChangeSummary(provisioned()), { total: 6, completed: 6 });
+  const withheld = decide(readyToApply(), 'h-budget', 'DO_NOT_GRANT', 'Budget approval remains with the controller.');
+  assert.deepEqual(connectedChangeSummary(run(apply(withheld))), { total: 5, completed: 5 });
+  const extraRemoval = decide(readyToApply(), 'h-bi', 'REMOVE', 'Remove reporting access.');
+  assert.deepEqual(connectedChangeSummary(run(apply(extraRemoval))), { total: 7, completed: 7 });
 });

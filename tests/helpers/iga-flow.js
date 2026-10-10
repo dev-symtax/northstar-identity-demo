@@ -7,7 +7,7 @@ export const EDIT_COMMENT = 'Budget approval remains with the Finance Director.'
 export const COMPLETION_REFERENCE = 'CHG-2026-2059';
 export const COMPLETION_NOTE = 'DBA confirmed user and agent database write permissions were revoked and independently verified.';
 
-const prohibited = /\b(?:demo|presenter|synthetic|sample|story)\b|Did we cover|Access starts with context\.|Every permission has a decision\.|Every decision has a reason\.|Consistent governance\. Practical fulfillment\.|Explain the decision\. Prove the control\.|Two distinct evidence trails|When business context changes, access changes with it\.|People\. Agents\. Applications\.|Change is accelerating\. Control must keep pace\./i;
+const prohibited = /\b(?:demo|presenter|synthetic|sample|story)\b|Did we cover|Access starts with context\.|Every permission has a decision\.|Every decision has a reason\.|Consistent governance\. Practical fulfillment\.|Explain the decision\. Prove the control\.|coming soon|Identity intelligence|Two distinct evidence trails|When business context changes, access changes with it\.|People\. Agents\. Applications\.|Change is accelerating\. Control must keep pace\./i;
 
 export async function assertProductLanguage(page) {
   const visibleCopy = await page.evaluate(() => {
@@ -21,21 +21,29 @@ export async function assertProductLanguage(page) {
     return [document.body.innerText, ...hints].join('\n');
   });
   expect(visibleCopy).not.toMatch(prohibited);
+  const undersized = await page.locator('main p, main td, main th, main li').evaluateAll(elements => elements.filter(element => parseFloat(getComputedStyle(element).fontSize) < 15).map(element => `${element.tagName}.${element.className} ${getComputedStyle(element).fontSize}: ${element.textContent.slice(0,80)}`));
+  expect(undersized).toEqual([]);
   expect(visibleCopy).not.toMatch(/Shift\s*\+\s*[GR]|[?&]reset=1/i);
   expect(visibleCopy).not.toMatch(/\b(?:Inbound|Outbound|Fulfillment|Governance decision|Policy evaluation|Direct application access|Delegated access|High-risk exception|Separation of duties|Never delegated|Workspace date)\b/i);
 }
 
 export async function nav(page, name) {
-  const item = page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact: true });
+  const item = ['Provisioning', 'Access recommendations'].includes(name)
+    ? page.getByRole('button', { name: `Step ${name === 'Provisioning' ? 4 : 3}: ${name}`, exact: true })
+    : page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact: true });
   await item.click();
-  await expect(item).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('main').getByRole('heading', { level: 1 })).toBeVisible();
   await assertProductLanguage(page);
 }
 
-export async function recommend(page) {
+export async function openSarahEvent(page) {
   await nav(page, 'Lifecycle events');
+  await page.locator('[data-record-id="WD-MOV-2026-0842"]').getByRole('button').first().click();
   await expect(page.getByRole('heading', { name: 'Lifecycle event', exact: true })).toBeVisible();
+}
+
+export async function recommend(page) {
+  await openSarahEvent(page);
   await page.getByRole('button', { name: 'Review access recommendations', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Access recommendations', exact: true })).toBeVisible();
   await assertProductLanguage(page);
@@ -66,8 +74,8 @@ export async function decidePayment(page, approve = true, comment = REVIEW_COMME
 
 export async function decideAll(page, approve = true) {
   await acceptAll(page, 'human');
-  await acceptAll(page, 'agent');
   await decidePayment(page, approve);
+  await acceptAll(page, 'agent');
 }
 
 export async function changeRow(page, id, decision, comment) {
@@ -103,7 +111,8 @@ export async function provision(page) {
   await expect(page.locator('.legacy-panel')).toBeVisible();
   await expect(page.locator('.legacy-panel')).toContainText('SN-TASK-004812');
   await expect(page.locator('.legacy-panel')).toContainText('Monday 19 October · 12:00 UTC');
-  await expect(page.locator('.app-footer')).toContainText('Today: Monday, 19 Oct 2026');
+  await expect(page.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
+  await expect(page.locator('.provisioning-run-date')).toHaveText('Run date: Monday, 19 Oct 2026 · 08:00 UTC');
   await assertProductLanguage(page);
 }
 
@@ -149,6 +158,6 @@ export async function assertKeyAuditRecords(page) {
   await expect(accessRow(page, 'h-payment')).toContainText('Patrick Sena');
   await expect(accessRow(page, 'a-payment')).toContainText('Not permitted by policy');
   await expect(accessRow(page, 'a-payment')).toContainText('POL-AI-303');
-  await page.getByRole('button', { name: 'Show all records (14)', exact: true }).click();
+  await page.getByRole('button', { name: 'All (14)', exact: true }).click();
   await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(14);
 }

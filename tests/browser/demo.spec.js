@@ -3,7 +3,7 @@ import {
   EDIT_COMMENT, REVIEW_COMMENT, COMPLETION_REFERENCE, accessRow, acceptAll,
   applyDecisions, assertKeyAuditRecords, assertProductLanguage, changeRow,
   confirmCompletion, decideAll, decidePayment, downloadAudit, expandConnected,
-  expectFullyInViewport, nav, provision, recommend,
+  expectFullyInViewport, nav, openSarahEvent, provision, recommend,
 } from '../helpers/iga-flow.js';
 
 const storageKey = 'northstar-identity-demo-v1';
@@ -16,11 +16,12 @@ test('full approval and provisioning path preserves audit history, persistence a
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Identity overview', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
   await assertProductLanguage(page);
   await recommend(page);
   await expectFullyInViewport(page, page.locator('.exception-panel'));
   await decideAll(page);
+  await page.getByRole('tab', { name: 'Human access', exact: true }).click();
   await expect(page.locator('.exception-panel')).toContainText('Approved · activates after Accounts Receivable Operator is removed');
   await page.getByRole('button', { name: 'View agent permissions', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'AI agent', exact: true })).toHaveAttribute('aria-selected', 'true');
@@ -32,10 +33,13 @@ test('full approval and provisioning path preserves audit history, persistence a
   expect(unprovisioned.tasks).toEqual({});
   expect(unprovisioned.fulfillmentEvidence).toEqual([]);
   await applyDecisions(page);
+  await expect(page.locator('.provisioning-connected')).toContainText('0 of 6 changes provisioned');
+  await expandConnected(page);
   await expect(accessRow(page, 'h-payment')).toContainText('Scheduled');
   await provision(page);
   await expectFullyInViewport(page, page.locator('.legacy-panel'));
   await expect(page.locator('main')).toContainText('Role access provisioned. 1 manual task open.');
+  await expect(page.locator('.provisioning-connected')).toContainText('6 of 6 changes provisioned');
   await expandConnected(page);
   await expect(accessRow(page, 'h-payment')).toContainText('Granted');
   await confirmCompletion(page);
@@ -70,11 +74,11 @@ test('full approval and provisioning path preserves audit history, persistence a
   await page.getByRole('tab', { name: 'Provisioning', exact: true }).click();
   await expect(accessRow(page, 'h-legacy')).toContainText(COMPLETION_REFERENCE);
   await page.keyboard.press('Shift+R');
-  await expect(page.getByRole('heading', { name: 'Identity overview', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
   await expect(page.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
   expect(await storedState(page)).toMatchObject({ evaluated: false, applied: false, review: 'pending', fulfillmentStarted: false, tasks: {}, accessDecisions: {}, decisionEvidence: [], fulfillmentEvidence: [], actions: [] });
   await nav(page, 'Audit trail');
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(0);
+  await expect(page.locator('.workspace-records tbody tr')).toHaveCount(5);
   await assertProductLanguage(page);
   expect(errors).toEqual([]);
 });
@@ -123,12 +127,16 @@ test('Budget Approval override requires a comment and is reflected in provisioni
   await decideAll(page);
   expect((await storedState(page)).accessDecisions['h-budget']).toMatchObject({ recommendedAction: 'GRANT', decidedAction: 'DO_NOT_GRANT', status: 'Changed', comment: EDIT_COMMENT });
   await applyDecisions(page);
+  await expect(page.locator('.provisioning-connected')).toContainText('0 of 5 changes provisioned');
+  await expandConnected(page);
   await expect(accessRow(page, 'h-budget')).toContainText('Do not grant');
   await provision(page);
   await expandConnected(page);
   await expect(accessRow(page, 'h-budget')).toContainText('Not granted');
+  await expect(page.locator('.provisioning-connected')).toContainText('5 of 5 changes provisioned');
+  await expect(accessRow(page, 'h-budget').getByRole('button', { name: `Review comment: ${EDIT_COMMENT}` })).toBeVisible();
   await nav(page, 'Audit trail');
-  await page.getByRole('button', { name: 'Show all records (14)', exact: true }).click();
+  await page.getByRole('button', { name: 'All (14)', exact: true }).click();
   await expect(accessRow(page, 'h-budget')).toContainText('Changed');
   await expect(accessRow(page, 'h-budget')).toContainText('Do not grant');
   await expect(accessRow(page, 'h-budget')).toContainText(EDIT_COMMENT);
@@ -158,6 +166,7 @@ for (const resolution of ['Remove Accounts Receivable Operator', 'Deny Payment A
     await applyDecisions(page);
     await provision(page);
     await expandConnected(page);
+    if (resolution === 'Deny Payment Approval') await page.getByLabel('Show unchanged access', { exact: true }).check();
     await expect(accessRow(page, 'h-ar')).toContainText(resolution === 'Remove Accounts Receivable Operator' ? 'Removed' : 'Retained');
     await expect(accessRow(page, 'h-payment')).toContainText(resolution === 'Remove Accounts Receivable Operator' ? 'Granted' : 'Not granted');
   });
@@ -171,8 +180,8 @@ test('agent payment approval is policy-locked and attempts to change it do not m
   await expect(row).toContainText('Policy-locked');
   await expect(row).toContainText('Not permitted by policy');
   const before = (await storedState(page)).accessDecisions['a-payment'];
-  await row.getByRole('button', { name: 'Change', exact: true }).click();
-  await expect(page.getByText('Payment approval is restricted to human identities (POL-AI-303). This cannot be overridden.', { exact: true })).toBeVisible();
+  await row.getByRole('button', { name: 'Locked by policy · View policy', exact: true }).click();
+  await expect(page.getByText('Payment approval is restricted to human identities. This cannot be overridden.', { exact: true })).toBeVisible();
   expect((await storedState(page)).accessDecisions['a-payment']).toEqual(before);
   await expect(page.locator('[data-change-for="a-payment"]')).toHaveCount(0);
   await assertProductLanguage(page);
@@ -204,8 +213,8 @@ test('dates, names, policies, recommendation counts and hidden keyboard controls
   await expect(page.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
   await expect(page.locator('.user-footer')).toContainText('Patrick Sena');
   await expect(page.locator('.user-footer')).toContainText('Head of Identity Governance');
-  await expect(page.locator('.user-avatar')).toHaveText('PS');
-  await expect(page.locator('.top-avatar')).toHaveAttribute('title', 'Patrick Sena · Head of Identity Governance');
+  await expect(page.locator('.user-footer img[alt="Patrick Sena"]')).toBeVisible();
+  await expect(page.locator('.top-avatar img[alt="Patrick Sena"]')).toBeVisible();
   const tasks = page.getByRole('button', { name: /My tasks/ });
   await expect(tasks).toContainText('1');
   await page.keyboard.press('Shift+G');
@@ -215,7 +224,7 @@ test('dates, names, policies, recommendation counts and hidden keyboard controls
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await assertProductLanguage(page);
-  await nav(page, 'Lifecycle events');
+  await openSarahEvent(page);
   await expect(page.locator('main')).toContainText('Mover: Finance Analyst → Finance Manager');
   await expect(page.locator('main')).toContainText('Tuesday, 13 October 2026 · 09:00 UTC');
   for (const policy of ['POL-FIN-101', 'POL-RISK-204', 'POL-SOD-017', 'POL-AI-301', 'POL-AI-302', 'POL-AI-303']) await expect(page.locator('main')).toContainText(policy);
@@ -236,7 +245,7 @@ test('dates, names, policies, recommendation counts and hidden keyboard controls
   await decideAll(page);
   await expect(tasks).not.toContainText('1');
   await page.goto('/?reset=1');
-  await expect(page.getByRole('heading', { name: 'Identity overview', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
   expect((await storedState(page)).actions).toEqual([]);
   expect(new URL(page.url()).searchParams.has('reset')).toBe(false);
   await assertProductLanguage(page);
@@ -258,6 +267,6 @@ test('mobile navigation and accessible drawer dismissal retain the existing resp
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await page.keyboard.press('Shift+R');
-  await expect(page.getByRole('heading', { name: 'Identity overview', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
   await assertProductLanguage(page);
 });

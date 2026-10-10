@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
-import { X, ArrowRight, Check, Info, ShieldCheck, ChevronRight } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { X, ArrowRight, Check, Info, ShieldCheck, ChevronRight, MessageSquare } from 'lucide-react';
+import { portraits } from '../data/assets.js';
 
 export function Badge({ children, tone, dot = true }) {
   const value = String(children);
-  const inferred = /Remove|REMOVE|Removed|Not permitted|Denied|Not granted|Do not grant/.test(value) ? 'red' : /Review|REVIEW|Awaiting|pending|open|Scheduled|Needs review|High|Critical/.test(value) ? 'amber' : /Grant|GRANT|Granted|Approved|Retained|Keep|KEEP|Accepted|Active|Complete|Ready/.test(value) ? 'green' : 'neutral';
+  const inferred = /Not permitted|Policy-locked|Locked/.test(value) ? 'neutral' : /Remove|REMOVE|Removed|Denied|Not granted|Do not grant/.test(value) ? 'red' : /Review|REVIEW|Awaiting|pending|open|Scheduled|Needs review|High|Critical/.test(value) ? 'amber' : /Grant|GRANT|Granted|Approved|Retained|Keep|KEEP|Accepted|Active|Complete|Ready/.test(value) ? 'green' : 'neutral';
   return <span className={`badge ${tone || inferred}`}>{dot && <span className="badge-dot" />}{children}</span>;
 }
 export function Button({ children, variant = 'primary', icon: Icon, ...props }) {
@@ -16,7 +17,14 @@ export function SectionTitle({ title, description, children }) {
   return <div className="section-title"><div><h2>{title}</h2>{description && <p>{description}</p>}</div>{children}</div>;
 }
 export function Avatar({ name, large = false }) {
-  return <span className={`avatar ${large ? 'large' : ''}`}>{name.split(' ').map(s => s[0]).slice(0, 2).join('')}</span>;
+  return <span className={`avatar ${large ? 'large' : ''}`}>{portraits[name] ? <img src={portraits[name]} alt={name} /> : name.split(' ').map(s => s[0]).slice(0, 2).join('')}</span>;
+}
+export function Actor({ name }) {
+  return <span className="actor-cell">{name?.startsWith('Patrick Sena') && <Avatar name="Patrick Sena" />}<span>{name || '—'}</span></span>;
+}
+export function CommentTooltip({ comment }) {
+  const [open, setOpen] = useState(false);
+  return <span className="comment-tooltip"><button type="button" className="icon-button" aria-label={`Review comment: ${comment}`} title={comment} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)} onClick={() => setOpen(true)}><MessageSquare size={18} /></button>{open && <span role="tooltip">{comment}</span>}</span>;
 }
 export function Empty({ title, children, onAction, action = 'View lifecycle event' }) {
   return <div className="empty-state"><div className="empty-icon"><ShieldCheck size={30} strokeWidth={1.3} /></div><h2>{title}</h2><p>{children}</p>{onAction && <Button icon={ArrowRight} onClick={onAction}>{action}</Button>}</div>;

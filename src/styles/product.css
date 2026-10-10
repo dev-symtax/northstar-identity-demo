@@ -1,0 +1,138 @@
+/* Product controls use the existing font, colors and spacing tokens. */
+body { font-size: 15px; }
+small, p, td, th, input, textarea, select, .badge, .button, .text-link, .table-link, .scope-label, .policy-id, .muted-label { font-size: 15px; }
+h3 { font-size: 17px; }
+.page-title p, .section-title p, .stat-label, .stat > span, .detail-field dt, .detail-field dd, .profile-role small, .profile-details dd, .profile-details dt, .profile-event small, .access-bottom, .agent-intro p, .relationship-lane small, .lane-label, .relationship-path strong, .resource-pills span, .table-footer, .person-cell small, .tenant strong, .tenant small, .breadcrumbs, .story-person strong, .story-person div > span, .effective-date > span, .effective-date strong, .app-footer, .event-source small, .event-metadata, .event-policies strong, .event-policies span, .evaluation-list p, .reason-cell, .exception-content p, .exception-policies span, .recommendations-screen .recommendation-status small, .recommendations-screen .recommendation-condition, .recommendations-screen .recommendation-toolbar, .fulfillment-banner p, .task-action p, .task-details small, .task-details strong, .evidence-definition p, .evidence-definition small, .history-toggle, .cell-subtitle, .form-label, .form-hint, .recommendations-screen .recommendation-edit input, .recommendations-screen .recommendation-edit select, .recommendations-screen .recommendation-edit, .recommendation-toast, .audit-policy-lock { font-size: 15px; }
+.eyebrow, .nav-label, .task-details > div > span { font-size: 11px; }
+button, .button, .text-link, .table-link, .icon-button, .tabs > button, .story-step, input:not([type="checkbox"]), select { min-height: 40px; }
+.icon-button { min-width: 40px; }
+.button { font-size: 15px; padding: 9px 16px; }
+.button.quiet { background: var(--mint); border-color: var(--mint-border); color: var(--teal); }
+.button.quiet:hover:not(:disabled) { background: var(--surface); border-color: var(--teal); }
+.text-link, .table-link { padding-top: 6px; padding-bottom: 6px; }
+.tabs > button { font-size: 15px; }
+.tabs > button > span { font-size: 15px; }
+.sidebar { overflow: visible; padding-top: 24px; }
+.sidebar > nav { overflow-y: auto; flex: 1; min-height: 0; scrollbar-width: thin; }
+.tenant { margin: 20px 0 16px; flex-shrink: 0; }
+.tenant small { font-size: 13px; }
+.navigation-group { margin-bottom: 12px; }
+.navigation-group .nav-label { padding: 4px 13px 5px; text-transform: uppercase; letter-spacing: 1px; }
+.nav-item { font-size: 15px; padding: 9px 12px; margin-bottom: 2px; gap: 10px; line-height: 1.4; min-height: 40px; }
+.nav-count { font-size: 15px; }
+.sidebar-footer { flex-shrink: 0; padding: 16px 4px; margin-top: 12px; }
+.avatar { width: 40px; height: 40px; overflow: hidden; font-size: 15px; }
+.avatar.large { width: 64px; height: 64px; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; object-position: center; border-radius: 50%; }
+.actor-cell { display: inline-flex; align-items: center; gap: 8px; }
+.actor-cell .avatar { width: 28px; height: 28px; }
+.user-profile { position: relative; }
+.profile-trigger { border: 0; background: transparent; color: inherit; padding: 0; }
+.profile-trigger.user-footer { border-top: 1px solid var(--nav-line); padding-top: 12px; width: 100%; text-align: left; }
+.user-footer strong, .user-footer small { font-size: 15px; line-height: 1.35; }
+.top-avatar { width: 40px; height: 40px; display: grid; }
+.profile-popover { position: absolute; right: 0; top: calc(100% + 12px); z-index: 110; width: 340px; max-width: calc(100vw - 32px); background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--drawer-shadow); color: var(--ink); padding: 24px; }
+.sidebar-profile .profile-popover { position: fixed; left: 18px; right: auto; top: auto; bottom: 112px; }
+.profile-popover h2 { margin: 12px 0 4px; }
+.profile-popover dl { margin-bottom: 0; }
+.profile-popover dt { color: var(--muted); margin-top: 12px; }
+.profile-popover dd { margin: 0; overflow-wrap: anywhere; }
+.story-bar { gap: 16px; }
+.story-step { font-size: 15px; }
+.story-person { flex-shrink: 0; }
+.story-person div > span { font-size: 13px; }
+.story-steps { gap: 6px; }
+.step-line { width: 12px; }
+.step-circle { width: 26px; height: 26px; font-size: 13px; }
+.application-tile { width: 28px; height: 28px; display: inline-grid; place-items: center; border: 1px solid var(--line); border-radius: var(--radius); background: var(--white); color: var(--muted); flex-shrink: 0; position: relative; }
+.application-tile > img { width: 22px; height: 22px; object-fit: contain; }
+.application-tile > svg { margin-top: -5px; }
+.application-initials { position: absolute; bottom: 1px; font-size: 7px; line-height: 1; font-weight: 600; }
+.application-name { display: inline-flex; align-items: center; gap: 8px; text-align: left; }
+.application-name > span:last-child { display: flex; flex-direction: column; gap: 3px; }
+.connection-indicator { display: block; font-size: 13px; color: var(--muted); line-height: 1.3; }
+.connection-indicator.connected::before { content: ''; display: inline-block; width: 5px; height: 5px; background: var(--teal); border-radius: 50%; margin-right: 5px; }
+.connection-indicator.manual { width: fit-content; border: 1px solid var(--line); border-radius: var(--radius); padding: 1px 5px; background: var(--surface); }
+.attention-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; border: 1px solid var(--amber-border); border-radius: var(--radius); background: var(--amber-surface); padding: 24px; margin-bottom: 24px; }
+.attention-card h2 { margin: 6px 0; }
+.attention-card .eyebrow { color: var(--amber); }
+.workspace-records { overflow: auto; }
+.workspace-records table { width: 100%; }
+.workspace-records tbody tr { cursor: pointer; }
+.workspace-records tbody tr:hover { background: var(--surface); }
+.workspace-records .attention-row { background: var(--amber-surface); box-shadow: inset 3px 0 var(--amber); }
+.record-link { font-size: 15px; text-align: left; }
+.filter-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.filter-chips button { border: 1px solid var(--line); border-radius: var(--radius); color: var(--muted); background: var(--white); padding: 8px 14px; display: flex; gap: 10px; align-items: center; }
+.filter-chips button.active { border-color: var(--mint-border); color: var(--teal); background: var(--mint); }
+.filter-chips button > span { color: var(--muted); }
+.campaign-progress { min-width: 170px; }
+progress { display: block; margin-top: 8px; width: 100%; height: 6px; border: 0; background: var(--surface); accent-color: var(--teal); }
+progress::-webkit-progress-bar { background: var(--surface); }
+progress::-webkit-progress-value { background: var(--teal); }
+.report-charts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.report-chart { text-align: left; padding: 24px; color: var(--ink); }
+.report-chart h2 { margin: 12px 0; }
+.report-chart > strong { display: block; font-size: 30px; margin-bottom: 8px; }
+.report-track { height: 10px; background: var(--surface); position: relative; margin: 24px 0 6px; }
+.report-track > span { display: block; height: 100%; background: var(--teal); }
+.report-track > i { position: absolute; width: 2px; height: 18px; top: -4px; background: var(--ink); transform: translateX(-2px); }
+.drawer-application { margin-bottom: 24px; }
+.application-list { display: grid; gap: 12px; margin-bottom: 24px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+th { position: relative; }
+.recommendation-sticky-summary { position: sticky; top: 0; z-index: 20; background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; gap: 16px; margin-bottom: 24px; box-shadow: 0 2px 8px rgb(11 21 48 / 5%); }
+.recommendation-sticky-summary strong, .recommendation-sticky-summary span { display: block; }
+.recommendation-sticky-summary span { color: var(--muted); margin-top: 3px; }
+.exception-panel { margin-bottom: 24px; scroll-margin-top: 105px; }
+.decision-summary { margin-bottom: 24px; }
+.decision-summary > div > span:last-child { font-size: 15px; }
+.recommendations-screen .recommendation-controls { flex-wrap: nowrap; gap: 4px; min-width: 265px; }
+.recommendations-screen .recommendation-controls .button { font-size: 15px; padding: 8px 10px; }
+.recommendation-status small { max-width: 250px; }
+.recommendation-status .badge { background: var(--surface); border-color: var(--line); color: var(--muted); }
+.settled-row { background: var(--surface-alt); }
+.settled-row .resource-cell .table-link { color: var(--muted); }
+.block-row { background: var(--surface); }
+.policy-lock-control { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px; text-align: left; }
+.locked-policy-panel { padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.locked-policy-panel h3 { margin-bottom: 6px; }
+.agent-block-highlight { background: var(--surface); box-shadow: inset 0 0 0 2px var(--muted); }
+.recommendation-toast, .recorded-toast { position: fixed; bottom: 24px; right: 24px; z-index: 100; max-width: min(500px, calc(100vw - 48px)); padding: 14px 20px; border: 1px solid var(--mint-border); background: var(--mint); border-radius: var(--radius); box-shadow: var(--drawer-shadow); color: var(--ink); font-size: 15px; }
+.provisioning-run-date { margin: -12px 0 20px; }
+.provisioning-status { display: flex; align-items: center; gap: 20px; padding: 0; margin: 0 0 24px; list-style: none; color: var(--muted); }
+.provisioning-status li { display: flex; align-items: center; gap: 8px; }
+.provisioning-status li > span { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; }
+.provisioning-status .current { color: var(--ink); font-weight: 600; }
+.provisioning-status .done > span { color: var(--teal); border-color: var(--mint-border); background: var(--mint); }
+.unchanged-toggle { display: flex; align-items: center; gap: 8px; padding: 0 22px 16px; min-height: 40px; color: var(--muted); cursor: pointer; }
+.unchanged-toggle input { accent-color: var(--teal); width: 16px; height: 16px; }
+.policy-count-line { display: flex; align-items: center; gap: 8px; padding: 16px 22px; border-top: 1px solid var(--line); color: var(--muted); }
+.task-attention { border-color: var(--amber-border); box-shadow: inset 3px 0 var(--amber); }
+.task-attention > .section-title { background: var(--amber-surface); }
+.task-source { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--muted); }
+.provisioning-policy-note { margin: 16px 0; }
+.comment-tooltip { display: inline-block; position: relative; margin-left: 6px; }
+.comment-tooltip [role="tooltip"] { position: absolute; width: 280px; right: 0; bottom: calc(100% + 8px); z-index: 50; background: var(--navy); color: var(--white); padding: 12px; border-radius: var(--radius); font-size: 15px; white-space: normal; }
+.audit-access { display: flex; align-items: center; gap: 8px; }
+.audit-policy-lock { color: var(--muted); }
+.audit-panel { overflow: auto; }
+.audit-panel table { min-width: 1180px; }
+.recommendations-screen .decisions-panel { overflow: auto; }
+.recommendations-screen .decisions-panel table { min-width: 1280px; }
+@media (max-width: 1600px) { .effective-date { display: none; } .story-person div > span { display: none; } }
+@media (max-width: 1150px) { .story-step > span:last-child { display: none; } .story-steps { gap: 10px; } .report-charts { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .nav-item { font-size: 15px; } .tenant { margin: 16px 0; } .sidebar { padding-top: 20px; } .top-avatar { display: grid; } .profile-grid { display: block; } .attention-card { align-items: flex-start; flex-direction: column; } .recommendation-sticky-summary { padding: 12px; } .recommendation-sticky-summary span { display: none; } .decision-summary { grid-template-columns: repeat(2, 1fr); } .decision-summary > div > span:last-child { font-size: 15px; } .exception-panel { padding: 18px; } .recommendation-review-actions { margin-left: 0; } .provisioning-status { flex-wrap: wrap; gap: 12px; } .workspace-records table { min-width: 800px; } .report-charts { grid-template-columns: 1fr; } .story-person strong { font-size: 13px; } .story-bar { gap: 6px; padding: 12px 16px; } .story-step { min-width: 26px; } .story-steps { gap: 4px; } .step-line { width: 5px; } .avatar { width: 36px; height: 36px; } .sidebar-profile .profile-popover { width: calc(100vw - 36px); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+
+.recommendations-screen .recommendation-toast { font-size: 15px; }
+
+.section-divider > span:not(.eyebrow), .profile-heading > div > span, .profile-heading > .badge, .profile-event strong, .profile-details .detail-field dt, .profile-details .detail-field dd, .legacy-task-title p, .title-action .button, .button.ghost, .access-panel td strong, .resource-cell small, .connection-indicator, .evidence-toolbar .tabs > button { font-size: 15px; }
+.recommendation-status .badge.amber { background: var(--amber-surface); border-color: var(--amber-border); color: var(--amber); }
+.history-toggle { min-height: 40px; }
+
+.event-source strong, .event-person div > span, .role-transition p, .event-metadata > div, .timestamp-cell, .reference-cell { font-size: 15px; }
+.evaluation-list h3 { font-size: 17px; }
+.notice, .inbound-panel p, .empty-state p, .recommendations-screen .recommendation-sod p { font-size: 15px; }
+.detail-list li, .guide-list strong, .guide-list p, .error-text, .tenant small, .story-person div > span, .story-person strong { font-size: 15px; }
+.profile-role > span { font-size: 11px; }

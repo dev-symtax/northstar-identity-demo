@@ -78,6 +78,9 @@ export const identities = peopleNames.map((name, index) => {
   };
 });
 Object.assign(identities[0], { role: 'Finance Analyst', manager: 'Rachel Morgan', access: ['sap-view', 'powerbi-fin', 'ar-operator', 'legacy-write'] });
+// The completed leaver events retain their identity records for audit, with
+// inactive accounts and no remaining application access.
+for (const index of [39, 45]) Object.assign(identities[index], { status: 'Inactive', access: [] });
 export const agents = [
   { id: 'finance-agent', name: 'Finance Operations Agent', owner: 'Sarah Miller', purpose: 'Finance reporting and operational assistance', departments: ['Finance'], resources: ['powerbi-fin', 'finance-reports', 'ar-operator', 'legacy-write'], autonomy: 'Controlled' },
   { id: 'hr-agent', name: 'People Services Agent', owner: 'Tim Bennett', purpose: 'Employee policy and HR case assistance', departments: ['HR'], resources: ['wd-profile', 'wd-hr'], autonomy: 'Read only' },

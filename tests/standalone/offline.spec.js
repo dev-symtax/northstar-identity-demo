@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 import {
   EDIT_COMMENT, REVIEW_COMMENT, COMPLETION_REFERENCE, accessRow, applyDecisions,
   assertKeyAuditRecords, assertProductLanguage, changeRow, confirmCompletion,
-  decideAll, downloadAudit, expectFullyInViewport, nav, provision, recommend,
+  decideAll, downloadAudit, expandConnected, expectFullyInViewport, nav, provision, recommend,
 } from '../helpers/iga-flow.js';
 
 const output = new URL('../../dist-standalone/', import.meta.url);
@@ -51,9 +51,11 @@ test('single HTML embeds scripts, styles, assets and exact local fonts and licen
   await page.goto(appUrl);
   await disableNetworking(context);
   expect(await page.evaluate(() => navigator.onLine)).toBe(false);
-  await expect(page.getByRole('heading', { name: 'Identity overview', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
   await assertProductLanguage(page);
-  await expect(page.locator('script[src], link[href]')).toHaveCount(0);
+  await expect(page.locator('script[src], link[rel="stylesheet"]')).toHaveCount(0);
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', /^data:image\/svg\+xml,/);
+  await expect(page).toHaveTitle('Northstar Identity · Meridian Global');
   await expect(page.locator('script[type="module"]')).toHaveCount(1);
   await expect(page.locator('style')).toHaveCount(1);
   const assets = await page.evaluate(async () => {
@@ -70,6 +72,13 @@ test('single HTML embeds scripts, styles, assets and exact local fonts and licen
   expect(assets.fonts).toHaveLength(2);
   for (const font of assets.fonts) expect(font).toEqual({ family: 'Plus Jakarta Sans', status: 'loaded' });
   for (const image of assets.images) expect(image).toMatch(/^data:/);
+  const photos = await page.getByRole('img', { name: /Patrick Sena|Sarah Miller/ }).evaluateAll(images => images.map(image => ({ src: image.src, loaded: image.complete && image.naturalWidth === 192 && image.naturalHeight === 192 })));
+  for (const photo of photos) expect(photo.loaded).toBe(true);
+  for (const name of ['patrick-sena', 'sarah-miller']) {
+    const original = await readFile(new URL(`../../src/assets/people/${name}.jpg`, import.meta.url));
+    expect(original.length).toBeLessThan(40000);
+    expect(photos.some(photo => Buffer.from(photo.src.split(',')[1], 'base64').equals(original))).toBe(true);
+  }
   for (const css of assets.styles) {
     expect(css).not.toMatch(/@import\b/);
     for (const match of css.matchAll(/url\(\s*["']?([^"')\s]+)/g)) expect(match[1]).toMatch(/^data:/);
@@ -77,6 +86,38 @@ test('single HTML embeds scripts, styles, assets and exact local fonts and licen
   expect(assets.license).toEqual(await readFile(new URL('../../public/fonts/PLUS-JAKARTA-SANS-LICENSE.txt', import.meta.url), 'utf8'));
   expect(assets.externalLinks).toEqual([]);
   expect(unexpected).toEqual([]);
+});
+
+test('offline navigation, drawers, profile portraits and all application fallback tiles load without requests', async ({ page, context }) => {
+  const unexpected = observeRequests(page);
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await supplyOfflineDocument(context);
+  await page.goto(appUrl);
+  await disableNetworking(context);
+  for (const name of ['My tasks', 'Lifecycle events', 'Access requests', 'Access certifications', 'Policies', 'Roles', 'AI agents', 'Applications', 'Connectors', 'Workday source', 'Audit trail', 'Reports']) {
+    await nav(page, name);
+    const rows = page.locator('.workspace-records tbody tr');
+    expect(await rows.count()).toBeGreaterThan(0);
+    await rows.nth(name === 'Lifecycle events' ? 1 : 0).getByRole('button').first().click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await assertProductLanguage(page);
+    await page.keyboard.press('Escape');
+  }
+  await nav(page, 'Applications');
+  await expect(page.locator('[data-asset-kind="category"]')).toHaveCount(12);
+  for (const location of ['header', 'sidebar']) {
+    await page.getByRole('button', { name: `Open Patrick Sena profile · ${location}`, exact: true }).click();
+    const profile = page.getByRole('dialog', { name: 'Patrick Sena profile' });
+    await expect(profile).toContainText('patrick.sena@meridianglobal.com');
+    const photo = profile.getByRole('img', { name: 'Patrick Sena' });
+    await expect(photo).toHaveAttribute('src', /^data:image\/jpeg;base64,/);
+    expect(await photo.evaluate(image => image.complete && image.naturalWidth === 192)).toBe(true);
+    await page.keyboard.press('Escape');
+  }
+  expect(await page.evaluate(() => navigator.onLine)).toBe(false);
+  expect(unexpected).toEqual([]);
+  expect(errors).toEqual([]);
 });
 
 test('offline full approval path supports provisioning, editable completion, JSON export, persistence and hidden reset', async ({ page, context }) => {
@@ -131,14 +172,14 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await reopened.keyboard.press('Escape');
   await assertProductLanguage(reopened);
   await reopened.keyboard.press('Shift+R');
-  await expect(reopened.getByRole('heading', { name: 'Identity overview', exact: true })).toBeVisible();
+  await expect(reopened.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
   await expect(reopened.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
   const resetState = await reopened.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')));
   expect(resetState).toMatchObject({ evaluated: false, applied: false, review: 'pending', fulfillmentStarted: false, accessDecisions: {}, tasks: {}, decisionEvidence: [], fulfillmentEvidence: [], actions: [] });
   await reopened.reload();
   await disableNetworking(context);
   await nav(reopened, 'Audit trail');
-  await expect(reopened.locator('.evidence-panel tbody tr')).toHaveCount(0);
+  await expect(reopened.locator('.workspace-records tbody tr')).toHaveCount(5);
   expect(errors).toEqual([]);
   expect(unexpected).toEqual([]);
   expect(reopenedRequests).toEqual([]);
@@ -155,11 +196,13 @@ test('offline Budget Approval edit is carried into the scheduled changes and aud
   await changeRow(page, 'h-budget', 'Do not grant', EDIT_COMMENT);
   await decideAll(page);
   await applyDecisions(page);
+  await expandConnected(page);
   await expect(accessRow(page, 'h-budget')).toContainText('Do not grant');
-  await expect(accessRow(page, 'h-budget')).toContainText(EDIT_COMMENT);
+  await accessRow(page, 'h-budget').getByRole('button', { name: `Review comment: ${EDIT_COMMENT}` }).click();
+  await expect(page.getByRole('tooltip')).toHaveText(EDIT_COMMENT);
   await provision(page);
   await nav(page, 'Audit trail');
-  await page.getByRole('button', { name: 'Show all records (14)', exact: true }).click();
+  await page.getByRole('button', { name: 'All (14)', exact: true }).click();
   await expect(accessRow(page, 'h-budget')).toContainText('Changed');
   await expect(accessRow(page, 'h-budget')).toContainText(EDIT_COMMENT);
   const bundle = await downloadAudit(page);
@@ -183,7 +226,7 @@ test.describe('local static-server fallback', () => {
     await page.goto(appUrl);
     await context.setOffline(true);
     expect(await page.evaluate(() => navigator.onLine)).toBe(false);
-    await expect(page.getByRole('heading', { name: 'Identity overview', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
     await recommend(page);
     expect(requests).toEqual([appUrl]);
     expect(unexpected).toEqual([]);
