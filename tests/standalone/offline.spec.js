@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 import { assertLogoConsistency, verifyLogoCatalog } from '../helpers/application-logos.js';
 import { exerciseRecommendationOverrides } from '../helpers/recommendation-overrides.js';
+import { exerciseExclusiveDecisionControls, exerciseScheduledAuditNavigation } from '../helpers/decision-audit-actions.js';
 import {
   EDIT_COMMENT, REVIEW_COMMENT, COMPLETION_REFERENCE, accessRow, applyDecisions,
   assertKeyAuditRecords, assertProductLanguage, changeRow, confirmCompletion,
@@ -348,6 +349,21 @@ test('offline bulk acceptance preserves manual human and agent selections throug
   expect(unexpected).toEqual([]);
   expect(errors).toEqual([]);
 });
+
+for (const [name, exercise] of [['exclusive decision controls', exerciseExclusiveDecisionControls], ['scheduled audit navigation', exerciseScheduledAuditNavigation]]) {
+  test(`offline ${name} preserves decisions, execution evidence, persistence and reset`, async ({ page, context }) => {
+    const unexpected = observeRequests(page);
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await supplyOfflineDocument(context);
+    await page.goto(appUrl);
+    await disableNetworking(context);
+    await exercise(page, () => disableNetworking(context));
+    expect(await page.evaluate(() => navigator.onLine)).toBe(false);
+    expect(unexpected).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+}
 
 test.describe('local static-server fallback', () => {
   test.use({ offline: false });

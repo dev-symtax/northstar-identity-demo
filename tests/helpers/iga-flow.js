@@ -110,6 +110,8 @@ export async function applyDecisions(page) {
   await expect(page.locator('.fulfillment-banner h2')).toHaveText('Changes scheduled for Monday, 19 October 2026.');
   await expect(page.locator('.fulfillment-banner p')).toHaveText('No access has changed yet.');
   await expect(page.getByRole('button', { name: 'Run scheduled provisioning', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Run scheduled provisioning', exact: true })).toHaveClass(/primary/);
+  await expect(page.getByRole('button', { name: 'View audit trail', exact: true })).toHaveClass(/secondary/);
   await assertProductLanguage(page);
 }
 

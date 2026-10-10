@@ -54,6 +54,7 @@ export default function Evidence({ state, navigate, workflow = false }) {
   const allRecords = auditRecords(state, tab, history);
   const records = filterAuditRecords(allRecords, state, tab, filter);
   const openManual = legacyTaskRows(state).length > 0;
+  const awaitingProvisioning = state.applied && !state.fulfillmentStarted && state.fulfillmentEvidence.length === 0;
   const awaitingEvaluation = tab === 'decision' && !state.evaluated;
   function exportAuditTrail() {
     const enrich = record => ({ ...record, identity: subjectName(byId[record.rowId]), access: resourceName(byId[record.rowId]), scope: byId[record.rowId].scope === 'human' ? 'User' : byId[record.rowId].scope === 'inbound' ? 'Agent usage' : 'Agent permissions', ...(record.rowId === 'h-payment' ? { additionalPolicy: 'POL-SOD-017' } : {}) });
@@ -66,7 +67,7 @@ export default function Evidence({ state, navigate, workflow = false }) {
   const detailRow = detail && !isManualFulfillment(detail.record) && byId[detail.record.rowId];
   const detailDecision = detail?.type === 'decision' && decisionDetails(detail.record, detailRow, state);
   return <>
-    <PageTitle eyebrow="AUDIT · WD-MOV-2026-0842" title="Audit trail" description={`Access decisions and provisioning records for Sarah Miller’s role change effective ${SCENARIO.effectiveDate}.`} action={<div className="audit-actions">{workflow && <Button icon={ArrowRight} onClick={() => navigate(1)}>Return to lifecycle events</Button>}<Button variant="secondary" icon={Download} onClick={exportAuditTrail}>Export audit trail</Button></div>} />
+    <PageTitle eyebrow="AUDIT · WD-MOV-2026-0842" title="Audit trail" description={`Access decisions and provisioning records for Sarah Miller’s role change effective ${SCENARIO.effectiveDate}.`} action={<div className="audit-actions">{workflow && <Button icon={ArrowRight} onClick={() => navigate(awaitingProvisioning ? 3 : 1)}>{awaitingProvisioning ? 'Return to provisioning' : 'Return to lifecycle events'}</Button>}<Button variant="secondary" icon={Download} onClick={exportAuditTrail}>Export audit trail</Button></div>} />
     <div className="evidence-intro-grid">
       <section className={`evidence-definition ${tab === 'decision' ? 'selected' : ''}`}><span className="definition-icon"><Fingerprint size={24} strokeWidth={1.5} /></span><div><span className="eyebrow">ACCESS DECISIONS</span><h2>Recommendations and decisions</h2><p>Identity · Access · Action · Reviewer · Policy</p><small>Includes accepted recommendations, overrides and policy-locked access.</small></div></section>
       <section className={`evidence-definition ${tab === 'provisioning' ? 'selected' : ''}`}><span className="definition-icon"><ClipboardCheck size={24} strokeWidth={1.5} /></span><div><span className="eyebrow">PROVISIONING ACTIVITY</span><h2>Execution and completion</h2><p>Method · Status · Owner · SLA · Reference</p><small>Includes automated results and manual task completion.</small></div></section>

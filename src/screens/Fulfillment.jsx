@@ -78,7 +78,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   }
 
   return <>
-    <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description={`Applied access decisions are scheduled for ${SCENARIO.effectiveDate}.`} action={state.fulfillmentStarted ? <Button icon={ArrowRight} onClick={() => navigate(4)}>View audit trail</Button> : <Button icon={Play} onClick={provision}>Run scheduled provisioning</Button>} />
+    <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description={`Applied access decisions are scheduled for ${SCENARIO.effectiveDate}.`} action={state.fulfillmentStarted ? <Button icon={ArrowRight} onClick={() => navigate(4)}>View audit trail</Button> : <div className="audit-actions"><Button icon={Play} onClick={provision}>Run scheduled provisioning</Button><Button variant="secondary" icon={ArrowRight} onClick={() => navigate(4)}>View audit trail</Button></div>} />
     <p className="provisioning-run-date">Run date: Monday, 19 Oct 2026 · 08:00 UTC</p>
     <ol className="provisioning-status" aria-label="Provisioning status">{['Scheduled', 'Provisioned', hasManualTask ? 'Manual task open' : 'No manual task', 'Completed'].map((label, index) => { const current = !state.fulfillmentStarted ? 0 : openLegacy.length ? 2 : 3; return <li key={label} className={index === current ? 'current' : index < current ? 'done' : ''}><span>{index < current ? <Check size={16} /> : index + 1}</span>{label}</li>; })}</ol>
     <div className={`fulfillment-banner ${state.fulfillmentStarted && !openLegacy.length ? 'complete' : ''}`}>

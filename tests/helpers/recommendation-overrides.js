@@ -10,7 +10,7 @@ const keepComment = scope => `Read-only reporting remains approved for the ${sco
 const dashboardId = scope => `${scope === 'human' ? 'h' : 'a'}-dashboard`;
 const reportingId = scope => scope === 'human' ? 'h-bi' : 'a-reports';
 
-async function assertSelections(page, scope, method) {
+async function assertSelections(page, scope) {
   const row = accessRow(page, dashboardId(scope));
   await expect(row).toContainText('Changed from Grant to Do not grant');
   await expect(row).toContainText(dashboardComment(scope));
@@ -19,7 +19,9 @@ async function assertSelections(page, scope, method) {
   await expect(row.getByRole('button', { name: 'Reject', exact: true })).toHaveCSS('background-color', 'rgb(251, 241, 240)');
   await expect(row.getByRole('button', { name: 'Reject', exact: true })).toHaveCSS('color', 'rgb(156, 79, 75)');
   await expect(row.getByRole('button', { name: 'Accept', exact: true })).toHaveAttribute('aria-pressed', 'false');
-  await expect(row.getByRole('button', { name: 'Change', exact: true })).toHaveAttribute('aria-pressed', String(method === 'Change'));
+  await expect(row.getByRole('button', { name: 'Change', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await expect(row.locator('.recommendation-controls button[aria-pressed="true"]')).toHaveCount(1);
+  await expect(row.getByRole('button', { name: 'Accept', exact: true })).toHaveClass(/secondary/);
   const reporting = accessRow(page, reportingId(scope));
   await expect(reporting).toContainText(keepComment(scope));
   await expect(reporting.getByRole('button', { name: 'Change', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -48,10 +50,10 @@ export async function exerciseRecommendationOverrides(page, method, afterReload 
       await form.getByLabel('Comment', { exact: true }).fill(dashboardComment(scope));
       await form.getByRole('button', { name: 'Save change', exact: true }).click();
     }
-    await assertSelections(page, scope, method);
+    await assertSelections(page, scope);
     const before = await stored(page);
     await acceptAll(page, scope);
-    await assertSelections(page, scope, method);
+    await assertSelections(page, scope);
     const after = await stored(page);
     for (const [id, model] of Object.entries(before.accessDecisions)) {
       if (model.decidedAction) {
@@ -76,7 +78,7 @@ export async function exerciseRecommendationOverrides(page, method, afterReload 
   await recommend(page);
   for (const scope of ['human', 'agent']) {
     await page.getByRole('tab', { name: scope === 'human' ? 'Human access' : 'AI Agent access', exact: true }).click();
-    await assertSelections(page, scope, method);
+    await assertSelections(page, scope);
     await acceptAll(page, scope);
   }
   expect(await stored(page)).toEqual(beforeReload);

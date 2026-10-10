@@ -28,8 +28,9 @@ function isDecided(access) {
 function RowControls({ row, access, applied, onAccept, onEdit, onReview, onLocked }) {
   if (access.status === 'Policy-locked') return <button className="policy-lock-control" onClick={onLocked}><LockKeyhole size={18} /><span>Locked by policy · View policy</span></button>;
   if (access.recommendedAction === 'REVIEW') return <Button variant="secondary" disabled={applied} onClick={onReview}>{access.decidedAction ? 'Change' : 'Review'}</Button>;
-  const rejected = Boolean(access.decidedAction) && access.decidedAction !== access.recommendedAction;
-  return <div className="recommendation-controls" aria-label={`Actions for ${resourceName(row)}`}><Button variant="quiet" aria-pressed={access.decisionSource === 'accepted-recommendation'} disabled={applied || access.status === 'Accepted'} onClick={() => onAccept(row)}>Accept</Button><Button variant="secondary" aria-pressed={access.decisionSource === 'manual-override'} disabled={applied} onClick={() => onEdit(row, false)}>Change</Button><Button variant={rejected ? 'danger' : 'secondary'} aria-pressed={rejected} disabled={applied} onClick={() => onEdit(row, true)}>Reject</Button></div>;
+  const selected = !access.decidedAction ? null : access.decidedAction !== access.recommendedAction ? 'reject'
+    : access.decisionSource === 'manual-override' ? 'change' : 'accept';
+  return <div className="recommendation-controls" aria-label={`Actions for ${resourceName(row)}`}><Button variant={selected === 'accept' ? 'quiet' : 'secondary'} aria-pressed={selected === 'accept'} disabled={applied || access.status === 'Accepted'} onClick={() => onAccept(row)}>Accept</Button><Button variant="secondary" aria-pressed={selected === 'change'} disabled={applied} onClick={() => onEdit(row, false)}>Change</Button><Button variant={selected === 'reject' ? 'danger' : 'secondary'} aria-pressed={selected === 'reject'} disabled={applied} onClick={() => onEdit(row, true)}>Reject</Button></div>;
 }
 
 function DecisionStatus({ access, hideRecommended = false, hideAccepted = false }) {
