@@ -143,6 +143,7 @@ test('offline full approval path supports provisioning, editable completion, JSO
   expect(await page.evaluate(() => navigator.onLine)).toBe(false);
   await expect(page.locator('.story-steps')).toHaveCount(0);
   await expect(page.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
+  await expect(page.locator('.attention-card')).toContainText('1 mover event needs your decision');
   await recommend(page);
   await expectFullyInViewport(page, page.locator('.exception-panel'));
   await decideAll(page);
@@ -169,6 +170,11 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await page.getByLabel('Show unchanged access').uncheck();
   await expect(page.locator('.provisioning-connected tbody tr')).toHaveCount(7);
   await expect(accessRow(page, 'h-sap')).toHaveCount(0);
+  await nav(page, 'Overview');
+  await expect(page.locator('.attention-card')).toContainText('1 manual task needs completion');
+  await expect(page.locator('main')).not.toContainText('Mover decisions recorded');
+  await nav(page, 'Lifecycle events');
+  await page.locator('[data-record-id="WD-MOV-2026-0842"]').getByRole('button').first().click();
   await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'View audit trail', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveClass(/primary/);
@@ -183,6 +189,10 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await expectFullyInViewport(page, page.locator('.legacy-panel'));
   await confirmCompletion(page);
   await expect(page.locator('.legacy-panel')).toHaveCount(0);
+  await nav(page, 'Overview');
+  await expect(page.locator('.attention-card')).toHaveCount(0);
+  await expect(page.locator('main')).not.toContainText('Mover decisions recorded');
+  await nav(page, 'Lifecycle events');
   await mover.getByRole('button').first().click();
   await expect(page.getByRole('heading', { name: 'Audit trail', exact: true })).toBeVisible();
   await expect(page.getByLabel('Access lifecycle', { exact: true })).toBeVisible();
@@ -223,6 +233,7 @@ test('offline full approval path supports provisioning, editable completion, JSO
   for (const record of bundle.provisioningEvidence || bundle.fulfillmentEvidence) expect(record.timestamp.slice(0, 10)).toBe('2026-10-19');
   await page.reload();
   await disableNetworking(context);
+  await expect(page.locator('.attention-card')).toHaveCount(0);
   await nav(page, 'Audit trail');
   await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Provisioning', exact: true }).click();
@@ -233,6 +244,7 @@ test('offline full approval path supports provisioning, editable completion, JSO
   const reopenedRequests = observeRequests(reopened);
   await reopened.goto(appUrl);
   await disableNetworking(context);
+  await expect(reopened.locator('.attention-card')).toHaveCount(0);
   expect(await reopened.evaluate(() => Object.entries(localStorage))).toEqual(stored);
   await nav(reopened, 'Audit trail');
   await reopened.keyboard.press('Shift+G');
@@ -241,6 +253,7 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await assertProductLanguage(reopened);
   await reopened.keyboard.press('Shift+R');
   await expect(reopened.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+  await expect(reopened.locator('.attention-card')).toContainText('1 mover event needs your decision');
   await expect(reopened.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
   const resetState = await reopened.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')));
   expect(resetState).toMatchObject({ evaluated: false, applied: false, review: 'pending', fulfillmentStarted: false, accessDecisions: {}, tasks: {}, decisionEvidence: [], fulfillmentEvidence: [], manualFulfillmentEvidence: [], actions: [] });

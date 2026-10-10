@@ -3,7 +3,7 @@ import { ArrowRight, Bot, CalendarDays, ChevronRight, FileKey2, Search, ShieldCh
 import { applications, agents, entitlements, entitlementById, applicationById, identities, resourceName } from '../data/catalog.js';
 import { ApplicationName } from '../components/ApplicationIcon.jsx';
 import { SCENARIO } from '../data/scenario.js';
-import { humanAccess, agentAccess, canApplyDecisions, controlComplete } from '../demo/state.js';
+import { humanAccess, agentAccess, controlComplete, lifecycleStatus } from '../demo/state.js';
 import { Avatar, Badge, Button, Drawer, Field, Notice, PageTitle, SectionTitle, Stat } from '../components/UI.jsx';
 
 export default function IdentityOverview({ state, navigate }) {
@@ -16,7 +16,13 @@ export default function IdentityOverview({ state, navigate }) {
   const permissions = agentAccess(state);
   const agentUsageRemoved = state.tasks['a-inbound']?.status === 'Removed';
   const sarah = identities[0];
-  const needsDecision = !state.applied && !canApplyDecisions(state);
+  const eventStatus = lifecycleStatus(state);
+  const attentionTitle = {
+    'Needs decision': '1 mover event needs your decision',
+    'Ready to apply': '1 mover event ready to apply',
+    'Awaiting effective date': 'Mover changes awaiting effective date',
+    'Manual task open': '1 manual task needs completion',
+  }[eventStatus];
   const datasets = { Identities: identities, Applications: applications, 'AI agents': agents };
   const filtered = useMemo(() => datasets[tab].filter(item => {
     const text = [item.name, item.department, item.role, item.category, item.owner].filter(Boolean).join(' ').toLowerCase();
@@ -24,7 +30,7 @@ export default function IdentityOverview({ state, navigate }) {
   }), [tab, query, department, state]);
   return <>
     <PageTitle eyebrow="IDENTITY RECORDS" title="Overview" description="Identity records, current access and AI agent permissions for Meridian Global." action={<Button variant="secondary" icon={ArrowRight} onClick={() => navigate(1)}>View lifecycle events</Button>} />
-    <section className="attention-card"><div><span className="eyebrow">NEEDS YOUR ATTENTION</span><h2>{needsDecision ? '1 mover event needs your decision' : 'Mover decisions recorded'}</h2><p>Sarah Miller · Finance Analyst → Finance Manager</p></div><Button icon={ArrowRight} onClick={() => navigate(1)}>{needsDecision ? 'Review' : 'View event'}</Button></section>
+    {attentionTitle && <section className="attention-card"><div><span className="eyebrow">NEEDS YOUR ATTENTION</span><h2>{attentionTitle}</h2><p>Sarah Miller · Finance Analyst → Finance Manager</p></div><Button icon={ArrowRight} onClick={() => navigate(1)}>{eventStatus === 'Needs decision' ? 'Review' : 'View event'}</Button></section>}
     <div className="stats-row four"><Stat label="Enterprise workforce" value="35,000" detail="Europe & North America" icon={Users} /><Stat label="Upcoming movers" value="2,500" detail="Expected over the next 6 months" icon={CalendarDays} /><Stat label="Movers provisioned by effective date" value="72%" detail="Target 95%+" icon={ShieldCheck} /><Stat label="AI agents" value="4" detail="Active" icon={Bot} /></div>
     <div className="section-divider"><span className="eyebrow">FEATURED IDENTITY</span><span>Workday source of truth</span></div>
     <div className="profile-grid">
