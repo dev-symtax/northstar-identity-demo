@@ -3,6 +3,7 @@ import { ArrowRight, BarChart3, CheckCircle2 } from 'lucide-react';
 import { workspacePages, pageRows, sourceSummary } from '../data/workspace.js';
 import { entitlements, policies } from '../data/catalog.js';
 import { portraits } from '../data/assets.js';
+import { lifecycleStatus } from '../demo/state.js';
 import { ApplicationName } from '../components/ApplicationIcon.jsx';
 import { Actor, Avatar, Badge, Button, Drawer, Field, PageTitle, SectionTitle, Stat } from '../components/UI.jsx';
 
@@ -27,7 +28,7 @@ export default function WorkspacePage({ page, state, navigate }) {
   const open = row => page === 'events' && row.identity === 'sarah' ? navigate('sarah') : setDetail(row);
   const primary = () => ['events', 'tasks', 'workday', 'audit'].includes(page) ? navigate('sarah') : setDetail(rows[0]);
   return <div className={`workspace-page ${page}-page`}>
-    <PageTitle eyebrow={config.eyebrow} title={config.title} description={config.description} action={<Button icon={ArrowRight} onClick={primary}>{config.action}</Button>} />
+    <PageTitle eyebrow={config.eyebrow} title={config.title} description={config.description} action={(page !== 'events' || lifecycleStatus(state) !== 'Completed') && <Button icon={ArrowRight} onClick={primary}>{config.action}</Button>} />
     {page === 'workday' && <div className="source-summary"><div className="notice blue"><CheckCircle2 size={20} /><div><strong>Source synchronized</strong><p>Last sync: {sourceSummary.lastSync} · Last event: WD-MOV-2026-0842</p></div></div><div className="stats-row four"><Stat label="Identities" value="48" detail="Workday records" /><Stat label="Applications" value="12" detail="40 entitlements" /><Stat label="AI agents" value="4" detail="Active" /><Stat label="Mover events" value="4" detail="3 joiners · 2 leavers" /></div></div>}
     {page === 'reports' && <section className="report-charts" aria-label="Program reports">{config.rows.map((row, index) => <button className="panel report-chart" key={row.id} onClick={() => setDetail(row)}><BarChart3 size={20} /><h2>{row.name}</h2><strong>{row.value}</strong><p>Target {row.target} · {row.scope}</p><div className="report-track" role="img" aria-label={`${row.name}: ${row.value}, target ${row.target}`}><span style={{ width: row.value }} /><i style={{ left: `${parseFloat(row.target)}%` }} /></div></button>)}</section>}
     {page === 'events' && <div className="filter-chips" aria-label="Lifecycle event type">{['All', 'Joiner', 'Mover', 'Leaver'].map(type => <button key={type} aria-pressed={filter === type} className={filter === type ? 'active' : ''} onClick={() => setFilter(type)}>{type}<span>{type === 'All' ? allRows.length : allRows.filter(row => row.type === type).length}</span></button>)}</div>}

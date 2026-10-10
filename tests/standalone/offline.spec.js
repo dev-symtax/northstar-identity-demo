@@ -154,6 +154,9 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await expect(page.locator('.exception-panel').getByRole('button', { name: /^(Approve|Deny)$/ })).toHaveCount(0);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')).decisionEvidence.filter(record => record.rowId === 'h-payment' && record.decidedAction === 'GRANT').length)).toBe(1);
   await page.getByRole('button', { name: 'View agent permissions', exact: true }).click();
+  await expect(accessRow(page, 'a-inbound')).not.toContainText('Accepted');
+  await expect(accessRow(page, 'a-inbound').getByText('Keep', { exact: true })).toHaveCount(1);
+  await expect(accessRow(page, 'a-inbound').locator('.recommendation-usage-actions > .badge')).toHaveClass(/green/);
   await expect(accessRow(page, 'a-payment')).toHaveClass(/agent-block-highlight/);
   await expect(accessRow(page, 'a-payment')).toContainText('Not permitted by policy');
   await applyDecisions(page);
@@ -174,6 +177,7 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await expect(page.locator('.attention-card')).toContainText('1 manual task needs completion');
   await expect(page.locator('main')).not.toContainText('Mover decisions recorded');
   await nav(page, 'Lifecycle events');
+  await expect(page.getByRole('button', { name: 'Review mover event', exact: true })).toBeVisible();
   await page.locator('[data-record-id="WD-MOV-2026-0842"]').getByRole('button').first().click();
   await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'View audit trail', exact: true }).click();
@@ -188,11 +192,13 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await expect(page.getByRole('heading', { name: 'Provisioning', exact: true })).toBeVisible();
   await expectFullyInViewport(page, page.locator('.legacy-panel'));
   await confirmCompletion(page);
+  await expect(page.getByRole('button', { name: 'Review mover event', exact: true })).toHaveCount(0);
   await expect(page.locator('.legacy-panel')).toHaveCount(0);
   await nav(page, 'Overview');
   await expect(page.locator('.attention-card')).toHaveCount(0);
   await expect(page.locator('main')).not.toContainText('Mover decisions recorded');
   await nav(page, 'Lifecycle events');
+  await expect(page.getByRole('button', { name: 'Review mover event', exact: true })).toHaveCount(0);
   await mover.getByRole('button').first().click();
   await expect(page.getByRole('heading', { name: 'Audit trail', exact: true })).toBeVisible();
   await expect(page.getByLabel('Access lifecycle', { exact: true })).toBeVisible();

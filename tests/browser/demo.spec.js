@@ -94,7 +94,9 @@ test('Apply decisions stays disabled until both scopes and the policy violation 
   await expect(accessRow(page, 'h-payment')).toContainText('Needs review');
   await expect(apply).toBeDisabled();
   await acceptAll(page, 'agent');
-  await expect(accessRow(page, 'a-inbound')).toContainText('Accepted');
+  await expect(accessRow(page, 'a-inbound')).not.toContainText('Accepted');
+  await expect(accessRow(page, 'a-inbound').getByText('Keep', { exact: true })).toHaveCount(1);
+  expect((await storedState(page)).accessDecisions['a-inbound']).toMatchObject({ status: 'Accepted', decidedAction: 'KEEP' });
   await expect(accessRow(page, 'a-payment')).toContainText('Policy-locked');
   await expect(apply).toBeDisabled();
   await nav(page, 'Provisioning');

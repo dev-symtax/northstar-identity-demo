@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { REVIEW_COMMENT, accessRow, acceptAll, applyDecisions, assertProductLanguage, decidePayment, expandConnected, nav, provision, recommend } from '../helpers/iga-flow.js';
+import { REVIEW_COMMENT, accessRow, acceptAll, applyDecisions, assertProductLanguage, changeRow, decidePayment, expandConnected, nav, provision, recommend } from '../helpers/iga-flow.js';
 
 const stored = page => page.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')));
 const humanApprovals = state => state.decisionEvidence.filter(record => record.rowId === 'h-payment' && record.decidedAction === 'GRANT');
@@ -85,7 +85,25 @@ test('recommendation spacing, agent action alignment and audit identity icons ar
   });
   expect(await aligned()).toBe(true);
   await usage.getByRole('button', { name: 'Accept', exact: true }).click();
-  await expect(usage).toContainText('Accepted');
+  const assertAcceptedUsage = async () => {
+    await expect(usage).not.toContainText('Accepted');
+    await expect(usage.getByText('Keep', { exact: true })).toHaveCount(1);
+    await expect(usage.locator('.recommendation-usage-actions > .badge')).toHaveClass(/green/);
+    await expect(usage.getByRole('button', { name: 'Accept', exact: true })).toBeDisabled();
+    expect((await stored(page)).accessDecisions['a-inbound']).toMatchObject({ status: 'Accepted', decidedAction: 'KEEP' });
+    expect(await aligned()).toBe(true);
+  };
+  await assertAcceptedUsage();
+  await page.reload();
+  await recommend(page);
+  await page.getByRole('tab', { name: 'AI agent', exact: true }).click();
+  await assertAcceptedUsage();
+  await changeRow(page, 'a-inbound', 'Remove', 'Agent usage is temporarily suspended.');
+  await expect(usage).toContainText('Changed from Keep to Remove');
+  await expect(usage).toContainText('Agent usage is temporarily suspended.');
+  await changeRow(page, 'a-inbound', 'Keep', 'Agent usage remains approved.');
+  await assertAcceptedUsage();
+  await expect(usage).toContainText('Agent usage remains approved.');
   expect(await aligned()).toBe(true);
   await nav(page, 'Audit trail');
   const icon = accessRow(page, 'a-inbound').getByRole('img', { name: 'Finance Operations Agent · AI agent', exact: true });
@@ -103,4 +121,10 @@ test('recommendation spacing, agent action alignment and audit identity icons ar
   await expect(page.getByRole('dialog').getByRole('img', { name: 'Finance Operations Agent · AI agent', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await assertProductLanguage(page);
+  await page.keyboard.press('Shift+R');
+  await recommend(page);
+  await page.getByRole('tab', { name: 'AI agent', exact: true }).click();
+  await expect(usage.getByText('Keep', { exact: true })).toHaveCount(1);
+  await expect(usage.getByRole('button', { name: 'Accept', exact: true })).toBeEnabled();
+  expect((await stored(page)).accessDecisions['a-inbound']).toMatchObject({ status: 'Recommended', decidedAction: null });
 });

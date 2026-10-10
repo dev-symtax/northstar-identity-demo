@@ -108,6 +108,8 @@ export async function applyDecisions(page) {
 
 export async function provision(page) {
   await page.getByRole('button', { name: 'Provision changes', exact: true }).click();
+  await expect(page.locator('.provisioning-toast')).toHaveText(/^\d+ of \d+ connected changes provisioned successfully\. 1 manual task remains\.$/);
+  await expectFullyInViewport(page, page.locator('.legacy-panel'));
   await expect(page.locator('.legacy-panel')).toBeVisible();
   await expect(page.locator('.legacy-panel')).toContainText('SN-TASK-004812');
   await expect(page.locator('.legacy-panel')).toContainText('Monday 19 October · 12:00 UTC');

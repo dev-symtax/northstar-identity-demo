@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, Bot, Check, CheckCircle2, ChevronDown, Clock3, ClipboardCheck, FileCheck2, Play, Server, ShieldCheck, Zap } from 'lucide-react';
 import { decisions, resourceName, entitlementById } from '../data/catalog.js';
 import { ApplicationName } from '../components/ApplicationIcon.jsx';
@@ -19,6 +19,9 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   const [error, setError] = useState('');
   const [connectedExpanded, setConnectedExpanded] = useState(true);
   const [showUnchanged, setShowUnchanged] = useState(false);
+  const [provisionRequested, setProvisionRequested] = useState(false);
+  const [toastDismissed, setToastDismissed] = useState(false);
+  const summaryRef = useRef(null);
   const legacyRef = useRef(null);
   const openLegacy = legacyTaskRows(state);
   const legacyRows = decisions.filter(row => row.entitlement === 'legacy-write' && getAccessDecision(row, state).decidedAction === 'REMOVE');
@@ -29,11 +32,23 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   const manualScope = humanRemoval && agentRemoval ? 'User and AI agent' : humanRemoval ? 'User only' : 'AI agent only';
   const revocationDescription = humanRemoval && agentRemoval ? 'Remove Sarah Miller’s database write privilege and the Finance Operations Agent’s write permission.' : humanRemoval ? 'Remove Sarah Miller’s database write privilege.' : 'Remove the Finance Operations Agent’s database write permission.';
   const completion = [...state.fulfillmentEvidence].reverse().find(record => legacyRows.some(row => row.id === record.rowId) && record.status === 'Removed');
-  useStepFocus(legacyRef, state.fulfillmentStarted && openLegacy.length > 0);
+  useStepFocus(legacyRef, state.fulfillmentStarted && openLegacy.length > 0 && !provisionRequested);
   const closeTask = useCallback(() => setTaskOpen(false), []);
   const changeSummary = connectedChangeSummary(state);
   const tableRows = connectedProvisioningRows(state, showUnchanged);
   const showConnected = connectedExpanded;
+  const successMessage = provisionRequested && !toastDismissed && state.fulfillmentStarted && changeSummary.completed === changeSummary.total
+    ? `${changeSummary.completed} of ${changeSummary.total} connected changes provisioned successfully. ${openLegacy.length ? '1 manual task remains.' : 'No manual tasks remain.'}`
+    : '';
+  useEffect(() => {
+    if (!successMessage) return;
+    // The reducer's committed results and success message render together.
+    // Keep the summary in view briefly before handing attention to the task.
+    summaryRef.current?.scrollIntoView({ block: 'center', behavior: 'instant' });
+    const taskTimer = openLegacy.length ? setTimeout(() => legacyRef.current?.scrollIntoView({ block: 'center', behavior: 'instant' }), 750) : null;
+    const toastTimer = setTimeout(() => setToastDismissed(true), 5000);
+    return () => { clearTimeout(taskTimer); clearTimeout(toastTimer); };
+  }, [successMessage, openLegacy.length]);
 
   if (!state.applied) return <>
     <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description="Applied access decisions generate changes scheduled for the effective date." />
@@ -58,6 +73,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
     setTaskOpen(false);
   }
   function provision() {
+    setProvisionRequested(true);
     dispatch({ type: 'RUN_FULFILLMENT' });
   }
 
@@ -70,7 +86,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
       <div><h2>{state.fulfillmentStarted ? `Role access provisioned. ${openLegacy.length ? '1 manual task open.' : 'No manual tasks open.'}` : `Changes scheduled for ${SCENARIO.effectiveDate}.`}</h2><p>{state.fulfillmentStarted ? 'Automated results and manual task status are recorded against the applied access decisions.' : 'No access has changed. Provisioning starts when the scheduled changes are run.'}</p></div>
       <Badge tone={state.fulfillmentStarted && !openLegacy.length ? 'green' : 'amber'}>{state.fulfillmentStarted ? openLegacy.length ? 'Task open' : 'Completed' : 'Scheduled'}</Badge>
     </div>
-    <div className="stats-row three">
+    <div className="stats-row three" ref={summaryRef}>
       <Stat label="Changes provisioned" value={`${changeSummary.completed} of ${changeSummary.total}`} detail="changes provisioned" icon={Zap} />
       <Stat label="Manual tasks" value={!hasManualTask ? '0' : legacyComplete ? 'Completed' : state.fulfillmentStarted ? '1 open' : '1 scheduled'} detail={hasManualTask ? manualScope : 'No manual changes selected'} icon={ClipboardCheck} />
       <Stat label="Effective date" value="19 Oct 2026" detail="Monday · 08:00 UTC" icon={Clock3} />
@@ -102,6 +118,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
       </div> : <div className="manual-not-required"><p>Legacy Finance DB Write was retained for the user and AI agent. No manual removal task is required.</p></div>}
     </section>
     <p className="provisioning-policy-note">Payment approval is restricted to human identities (POL-AI-303).</p>
+    {successMessage && <div className="recorded-toast provisioning-toast" role="status">{successMessage}</div>}
     {taskOpen && <Drawer title="Confirm completion" subtitle="MANUAL TASK · SN-TASK-004812" onClose={closeTask}>
       <Notice>Confirm the selected database write removals and record verification.</Notice>
       <dl><Field label="Task">SN-TASK-004812</Field><Field label="Owner">Martin Keller · Finance Platforms</Field><Field label="Due">{SCENARIO.legacyDue}</Field><Field label="Scope">{manualScope}</Field><Field label="Required verification">{revocationDescription}</Field></dl>
