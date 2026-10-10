@@ -5,8 +5,15 @@ import { agentAccess, lifecycleStatus } from '../demo/state.js';
 const stamp = '13 Oct 2026 · 09:00 UTC';
 export const lifecycleEvents = [
   ...movers.map((event, index) => ({ ...event, name: identities.find(person => person.id === event.identity).name, type: 'Mover', status: index === 0 ? 'Needs decision' : 'Awaiting effective date', received: stamp, source: 'Workday' })),
-  ...[9, 15, 21].map((index, offset) => ({ id: `WD-JOIN-2026-0${731 + offset}`, identity: identities[index].id, name: identities[index].name, type: 'Joiner', from: 'New hire', to: identities[index].role, effective: 'Tuesday, 13 October 2026', status: 'Completed', received: '13 Oct 2026 · 08:30 UTC', source: 'Workday' })),
-  ...[39, 45].map((index, offset) => ({ id: `WD-LEAVE-2026-0${421 + offset}`, identity: identities[index].id, name: identities[index].name, type: 'Leaver', from: identities[index].role, to: 'Employment ended', effective: 'Tuesday, 13 October 2026', status: 'Completed', received: '13 Oct 2026 · 08:00 UTC', source: 'Workday' })),
+  ...[
+    { index: 9, effective: 'Thursday, 1 October 2026', status: 'Completed' },
+    { index: 15, effective: 'Thursday, 15 October 2026', status: 'Awaiting effective date' },
+    { index: 21, effective: 'Sunday, 1 November 2026', status: 'Awaiting effective date' },
+  ].map(({ index, effective, status }, offset) => ({ id: `WD-JOIN-2026-0${731 + offset}`, identity: identities[index].id, name: identities[index].name, type: 'Joiner', from: 'New hire', to: identities[index].role, effective, status, received: '13 Oct 2026 · 08:30 UTC', source: 'Workday' })),
+  ...[
+    { index: 39, effective: 'Wednesday, 30 September 2026' },
+    { index: 45, effective: 'Thursday, 1 October 2026' },
+  ].map(({ index, effective }, offset) => ({ id: `WD-LEAVE-2026-0${421 + offset}`, identity: identities[index].id, name: identities[index].name, type: 'Leaver', from: identities[index].role, to: 'Employment ended', effective, status: 'Completed', received: '13 Oct 2026 · 08:00 UTC', source: 'Workday' })),
 ];
 
 const requestRows = [

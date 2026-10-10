@@ -129,12 +129,14 @@ test('Budget Approval override requires a comment and is reflected in provisioni
   await applyDecisions(page);
   await expect(page.locator('.provisioning-connected')).toContainText('0 of 6 changes provisioned');
   await expandConnected(page);
-  await expect(accessRow(page, 'h-budget')).toContainText('Do not grant');
+  await expect(accessRow(page, 'h-budget')).toHaveCount(0);
   await provision(page);
   await expandConnected(page);
-  await expect(accessRow(page, 'h-budget')).toContainText('Not granted');
+  await expect(accessRow(page, 'h-budget')).toHaveCount(0);
   await expect(page.locator('.provisioning-connected')).toContainText('6 of 6 changes provisioned');
-  await expect(accessRow(page, 'h-budget').getByRole('button', { name: `Review comment: ${EDIT_COMMENT}` })).toBeVisible();
+  await page.getByLabel('Show unchanged access').check();
+  await expect(accessRow(page, 'h-budget')).toHaveCount(0);
+  await expect(page.locator('.provisioning-connected')).toContainText('6 of 6 changes provisioned');
   await nav(page, 'Audit trail');
   await page.getByRole('button', { name: 'All (16)', exact: true }).click();
   await expect(accessRow(page, 'h-budget')).toContainText('Changed');
@@ -168,7 +170,14 @@ for (const resolution of ['Remove Accounts Receivable Operator', 'Deny Payment A
     await expandConnected(page);
     if (resolution === 'Deny Payment Approval') await page.getByLabel('Show unchanged access', { exact: true }).check();
     await expect(accessRow(page, 'h-ar')).toContainText(resolution === 'Remove Accounts Receivable Operator' ? 'Removed' : 'Retained');
-    await expect(accessRow(page, 'h-payment')).toContainText(resolution === 'Remove Accounts Receivable Operator' ? 'Granted' : 'Not granted');
+    if (resolution === 'Remove Accounts Receivable Operator') await expect(accessRow(page, 'h-payment')).toContainText('Granted');
+    else {
+      await expect(accessRow(page, 'h-payment')).toHaveCount(0);
+      await nav(page, 'Audit trail');
+      await expect(accessRow(page, 'h-payment')).toContainText('Do not grant');
+      await page.getByRole('tab', { name: 'Provisioning', exact: true }).click();
+      await expect(accessRow(page, 'h-payment')).toContainText('Not granted');
+    }
   });
 }
 

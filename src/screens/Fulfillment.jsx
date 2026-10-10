@@ -3,7 +3,7 @@ import { ArrowRight, Bot, Check, CheckCircle2, ChevronDown, Clock3, ClipboardChe
 import { decisions, resourceName, entitlementById } from '../data/catalog.js';
 import { ApplicationName } from '../components/ApplicationIcon.jsx';
 import { SCENARIO } from '../data/scenario.js';
-import { actionLabel, connectedChangeSummary, fulfillmentStatus, getAccessDecision, legacyTaskRows } from '../demo/state.js';
+import { actionLabel, connectedChangeSummary, connectedProvisioningRows, fulfillmentStatus, getAccessDecision, legacyTaskRows } from '../demo/state.js';
 import { Badge, Button, CommentTooltip, Drawer, Empty, Field, Notice, PageTitle, SectionTitle, Stat } from '../components/UI.jsx';
 import { useStepFocus } from '../components/useStepFocus.js';
 import '../styles/provisioning-audit.css';
@@ -31,10 +31,8 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   const completion = [...state.fulfillmentEvidence].reverse().find(record => legacyRows.some(row => row.id === record.rowId) && record.status === 'Removed');
   useStepFocus(legacyRef, state.fulfillmentStarted && openLegacy.length > 0);
   const closeTask = useCallback(() => setTaskOpen(false), []);
-  const apiRows = decisions.filter(row => row.entitlement !== 'legacy-write');
   const changeSummary = connectedChangeSummary(state);
-  const tableRows = apiRows.filter(row => { const action = getAccessDecision(row, state).decidedAction; return action !== 'NOT_PERMITTED' && (action !== 'KEEP' || showUnchanged); });
-  const connectedChanges = apiRows.filter(row => ['GRANT', 'REMOVE'].includes(getAccessDecision(row, state).decidedAction));
+  const tableRows = connectedProvisioningRows(state, showUnchanged);
   const showConnected = connectedExpanded;
 
   if (!state.applied) return <>

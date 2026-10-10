@@ -76,8 +76,8 @@ test('Sarah workflow has clean source information, ServiceNow decisions, scoped 
   await sarahRow(page).getByRole('button').first().click();
   await expect(page.getByRole('heading', { name: 'Audit trail', exact: true })).toBeVisible();
   await expect(stepper(page)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'All (16)', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(16);
+  await expect(page.getByRole('button', { name: 'All (17)', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(17);
   await expect(accessRow(page, 'h-snow-self')).toContainText('Keep');
   await expect(accessRow(page, 'h-snow-approver')).toContainText('Grant');
   await page.getByLabel('Show full history').check();

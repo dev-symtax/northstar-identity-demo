@@ -156,15 +156,15 @@ export async function expandConnected(page) {
   if (await expand.count() && await expand.first().isVisible()) await expand.first().click();
 }
 
-export async function assertKeyAuditRecords(page) {
-  await expect(page.getByRole('button', { name: 'All (16)', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(16);
+export async function assertKeyAuditRecords(page, total = 17) {
+  await expect(page.getByRole('button', { name: `All (${total})`, exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(total);
   await page.getByRole('button', { name: 'Key controls', exact: true }).click();
   await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(5);
   expect((await page.locator('.evidence-panel tbody tr').evaluateAll(rows => rows.map(row => row.dataset.rowId))).sort()).toEqual(KEY_RECORDS);
   await expect(accessRow(page, 'h-payment')).toContainText('Patrick Sena');
   await expect(accessRow(page, 'a-payment')).toContainText('Not permitted by policy');
   await expect(accessRow(page, 'a-payment')).toContainText('POL-AI-303');
-  await page.getByRole('button', { name: 'All (16)', exact: true }).click();
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(16);
+  await page.getByRole('button', { name: `All (${total})`, exact: true }).click();
+  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(total);
 }

@@ -11,7 +11,7 @@ const EVENT_ID = 'WD-MOV-2026-0842';
 export const initialState = () => ({
   version: STATE_VERSION, evaluated: false, applied: false, review: 'pending', reviewNote: '',
   fulfillmentStarted: false, accessDecisions: {}, tasks: {}, decisionEvidence: [],
-  fulfillmentEvidence: [], lifecycleEvidence: [], legacyTask: null, actionCount: 0, actions: [],
+  fulfillmentEvidence: [], manualFulfillmentEvidence: [], lifecycleEvidence: [], legacyTask: null, actionCount: 0, actions: [],
 });
 
 function recommendation(row) {
@@ -200,7 +200,17 @@ function reduceState(state, action) {
       });
     });
     const legacyTask = { ...state.legacyTask, status: 'Completed', completedAt: records.at(-1).timestamp, reference: action.reference.trim(), note: action.note.trim() };
-    return recordLifecycleCompletion({ ...state, tasks, legacyTask, actionCount: state.actionCount + 1, fulfillmentEvidence: [...state.fulfillmentEvidence, ...records] }, records.at(-1).timestamp);
+    const completionRecord = {
+      id: 'MF-SN-TASK-004812-completed', eventId: EVENT_ID, category: 'Controlled task',
+      actor: 'Martin Keller', action: 'Completed manual access removal',
+      applicationId: 'legacy', target: 'Legacy Finance DB', entitlement: 'legacy-write', resource: 'Legacy Finance DB Write',
+      task: 'SN-TASK-004812', result: 'Completed', timestamp: legacyTask.completedAt,
+      reference: legacyTask.reference, note: legacyTask.note, rowIds: rows.map(row => row.id),
+    };
+    return recordLifecycleCompletion({ ...state, tasks, legacyTask, actionCount: state.actionCount + 1,
+      fulfillmentEvidence: [...state.fulfillmentEvidence, ...records],
+      manualFulfillmentEvidence: [...state.manualFulfillmentEvidence, completionRecord],
+    }, records.at(-1).timestamp);
   }
   return state;
 }
@@ -235,8 +245,16 @@ export function fulfillmentStatus(row, state) {
 export function legacyTaskRows(state) {
   return decisions.filter(row => row.entitlement === 'legacy-write' && state.tasks[row.id]?.status === 'Task open');
 }
+export function connectedProvisioningRows(state, includeUnchanged = false) {
+  return decisions.filter(row => {
+    if (row.entitlement === 'legacy-write') return false;
+    const action = getAccessDecision(row, state).decidedAction;
+    // Agent usage changes are actionable; unchanged usage has no connected-app entitlement to provision.
+    return ['GRANT', 'REMOVE'].includes(action) || (includeUnchanged && row.entitlement && action === 'KEEP');
+  });
+}
 export function connectedChangeSummary(state) {
-  const rows = decisions.filter(row => row.entitlement !== 'legacy-write' && ['GRANT', 'REMOVE'].includes(getAccessDecision(row, state).decidedAction));
+  const rows = connectedProvisioningRows(state);
   return { total: rows.length, completed: rows.filter(row => ['Granted', 'Removed'].includes(state.tasks[row.id]?.status)).length };
 }
 export function readiness(state) {

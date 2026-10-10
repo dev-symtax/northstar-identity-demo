@@ -6,17 +6,12 @@ import PolicyDetails from '../components/PolicyDetails.jsx';
 import { ApplicationIcon, ApplicationName } from '../components/ApplicationIcon.jsx';
 import { SCENARIO } from '../data/scenario.js';
 import { actionLabel, getAccessDecision, legacyTaskRows } from '../demo/state.js';
+import { auditRecords, filterAuditRecords, isManualFulfillment } from '../demo/audit.js';
 import { Actor, AgentIcon, AgentName, Badge, Button, Drawer, Empty, Field, Notice, PageTitle, SectionTitle, formatTime } from '../components/UI.jsx';
 import { useStepFocus } from '../components/useStepFocus.js';
 import '../styles/provisioning-audit.css';
 
 const byId = Object.fromEntries(decisions.map(row => [row.id, row]));
-const keyIds = ['h-payment', 'a-inbound', 'a-payment', 'h-legacy', 'a-legacy'];
-function latest(records) {
-  const grouped = new Map();
-  records.forEach(record => grouped.set(record.rowId, record));
-  return [...grouped.values()];
-}
 function identityLabel(row) {
   return row.scope === 'human' ? 'Sarah Miller · User' : row.scope === 'inbound' ? 'Sarah Miller · Agent usage' : 'Finance Operations Agent · Agent permissions';
 }
@@ -35,6 +30,17 @@ function decisionDetails(record, row, state) {
 }
 const completionReference = record => record.status === 'Task open' ? 'Pending completion' : record.status === 'Not granted' ? 'No grant executed' : record.reference || '—';
 
+function ManualFulfillmentRow({ record, type, onOpen }) {
+  return <tr data-record-id={record.id} data-audit-category="controlled-task">
+    <td><div className="audit-access"><ApplicationIcon appId={record.applicationId} /><button className="table-link" onClick={onOpen}>{record.resource}</button></div><small className="cell-subtitle">{record.category} · {record.task}</small></td>
+    {type === 'decision' ? <>
+      <td>—</td><td><Badge>{record.result}</Badge><small className="cell-subtitle">{record.action}</small></td><td><Actor name={record.actor} /></td><td>—</td><td className="timestamp-cell">{formatTime(record.timestamp)}</td><td className="audit-comment-cell">{record.reference}<small className="cell-subtitle">{record.note}</small></td>
+    </> : <>
+      <td>{record.action}</td><td><Badge>{record.result}</Badge></td><td><Actor name={record.actor} /></td><td>{SCENARIO.legacyDue}</td><td className="reference-cell">{record.reference}</td>
+    </>}
+  </tr>;
+}
+
 export default function Evidence({ state, navigate, workflow = false }) {
   const [tab, setTab] = useState('decision');
   const [history, setHistory] = useState(false);
@@ -45,21 +51,19 @@ export default function Evidence({ state, navigate, workflow = false }) {
   const tableRef = useRef(null);
   useStepFocus(tableRef, state.evaluated, { block: 'start' });
   const close = useCallback(() => setDetail(null), []);
-  const decisionRows = history ? state.decisionEvidence : latest(state.decisionEvidence);
-  const provisioningRows = history ? state.fulfillmentEvidence : latest(state.fulfillmentEvidence);
-  const allRecords = tab === 'decision' ? decisionRows : provisioningRows;
-  const records = allRecords.filter(record => filter === 'key' ? keyIds.includes(record.rowId) : filter === 'overrides' ? (tab === 'decision' ? record.status === 'Changed' : getAccessDecision(byId[record.rowId], state).status === 'Changed') : filter === 'locked' ? record.rowId === 'a-payment' : filter === 'manual' ? ['h-legacy', 'a-legacy'].includes(record.rowId) && getAccessDecision(byId[record.rowId], state).decidedAction === 'REMOVE' : true).sort((a, b) => filter === 'key' ? keyIds.indexOf(a.rowId) - keyIds.indexOf(b.rowId) : 0);
+  const allRecords = auditRecords(state, tab, history);
+  const records = filterAuditRecords(allRecords, state, tab, filter);
   const openManual = legacyTaskRows(state).length > 0;
   const awaitingEvaluation = tab === 'decision' && !state.evaluated;
   function exportAuditTrail() {
     const enrich = record => ({ ...record, identity: subjectName(byId[record.rowId]), access: resourceName(byId[record.rowId]), scope: byId[record.rowId].scope === 'human' ? 'User' : byId[record.rowId].scope === 'inbound' ? 'Agent usage' : 'Agent permissions', ...(record.rowId === 'h-payment' ? { additionalPolicy: 'POL-SOD-017' } : {}) });
     const accessDecisions = decisions.map(row => ({ rowId: row.id, identity: subjectName(row), access: resourceName(row), ...getAccessDecision(row, state) }));
-    const bundle = { product: 'Northstar Identity', customer: 'Meridian Global', eventId: 'WD-MOV-2026-0842', source: 'Workday', receivedAt: SCENARIO.receivedAt, previousRole: 'Finance Analyst', targetRole: 'Finance Manager', effectiveDate: SCENARIO.effectiveDateISO, timezone: 'UTC', applied: state.applied, accessDecisions, decisionEvidence: state.decisionEvidence.map(enrich), provisioningEvidence: state.fulfillmentEvidence.map(enrich), lifecycleEvidence: state.lifecycleEvidence, legacyTask: state.legacyTask };
+    const bundle = { product: 'Northstar Identity', customer: 'Meridian Global', eventId: 'WD-MOV-2026-0842', source: 'Workday', receivedAt: SCENARIO.receivedAt, previousRole: 'Finance Analyst', targetRole: 'Finance Manager', effectiveDate: SCENARIO.effectiveDateISO, timezone: 'UTC', applied: state.applied, accessDecisions, decisionEvidence: state.decisionEvidence.map(enrich), provisioningEvidence: state.fulfillmentEvidence.map(enrich), manualFulfillmentEvidence: state.manualFulfillmentEvidence, lifecycleEvidence: state.lifecycleEvidence, legacyTask: state.legacyTask };
     const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }));
     const link = document.createElement('a'); link.href = url; link.download = 'northstar-sarah-miller-audit-trail.json'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   if (!state.evaluated && !workflow) return <WorkspacePage page="audit" state={state} navigate={navigate} />;
-  const detailRow = detail && byId[detail.record.rowId];
+  const detailRow = detail && !isManualFulfillment(detail.record) && byId[detail.record.rowId];
   const detailDecision = detail?.type === 'decision' && decisionDetails(detail.record, detailRow, state);
   return <>
     <PageTitle eyebrow="AUDIT · WD-MOV-2026-0842" title="Audit trail" description={`Access decisions and provisioning records for Sarah Miller’s role change effective ${SCENARIO.effectiveDate}.`} action={<div className="audit-actions">{workflow && <Button icon={ArrowRight} onClick={() => navigate(1)}>Return to lifecycle events</Button>}<Button variant="secondary" icon={Download} onClick={exportAuditTrail}>Export audit trail</Button></div>} />
@@ -69,15 +73,16 @@ export default function Evidence({ state, navigate, workflow = false }) {
     </div>
     {(!state.fulfillmentStarted || openManual) && <Notice tone="amber"><strong>{openManual ? '1 manual task open.' : state.applied ? 'Provisioning has not started.' : 'Access decisions have not been applied.'}</strong> <button className="inline-link" onClick={() => navigate(state.applied ? 3 : 2)}>{state.applied ? 'Open provisioning' : 'Review access recommendations'}</button></Notice>}
     <div className="evidence-toolbar"><div className="tabs" role="tablist" aria-label="Audit record type">
-      <button role="tab" aria-label="Decisions" aria-selected={tab === 'decision'} className={tab === 'decision' ? 'active' : ''} onClick={() => setTab('decision')}><Fingerprint size={16} />Decisions<span>{latest(state.decisionEvidence).length}</span></button>
-      <button role="tab" aria-label="Provisioning" aria-selected={tab === 'provisioning'} className={tab === 'provisioning' ? 'active' : ''} onClick={() => setTab('provisioning')}><ClipboardCheck size={16} />Provisioning<span>{latest(state.fulfillmentEvidence).length}</span></button>
+      <button role="tab" aria-label="Decisions" aria-selected={tab === 'decision'} className={tab === 'decision' ? 'active' : ''} onClick={() => setTab('decision')}><Fingerprint size={16} />Decisions<span>{auditRecords(state, 'decision', history).length}</span></button>
+      <button role="tab" aria-label="Provisioning" aria-selected={tab === 'provisioning'} className={tab === 'provisioning' ? 'active' : ''} onClick={() => setTab('provisioning')}><ClipboardCheck size={16} />Provisioning<span>{auditRecords(state, 'provisioning', history).length}</span></button>
     </div><label className="history-toggle"><input type="checkbox" checked={history} onChange={event => setHistory(event.target.checked)} /><History size={15} />Show full history</label></div>
-    <div className="filter-chips" aria-label="Audit filter">{[['all', `All (${decisions.length})`], ['key', 'Key controls'], ['overrides', 'Overrides'], ['locked', 'Policy-locked'], ['manual', 'Manual tasks']].map(([key, label]) => <button key={key} aria-pressed={filter === key} className={filter === key ? 'active' : ''} onClick={() => setFilter(key)}>{label}</button>)}</div>
+    <div className="filter-chips" aria-label="Audit filter">{[['all', `All (${allRecords.length})`], ['key', 'Key controls'], ['overrides', 'Overrides'], ['locked', 'Policy-locked'], ['manual', 'Manual tasks']].map(([key, label]) => <button key={key} aria-pressed={filter === key} className={filter === key ? 'active' : ''} onClick={() => setFilter(key)}>{label}</button>)}</div>
     <section className="panel evidence-panel audit-panel" ref={tableRef}>
-      <SectionTitle title={tab === 'decision' ? 'Decisions' : 'Provisioning'} description={history ? 'Recorded transitions for the lifecycle event.' : ({ all: 'Latest record for each access recommendation.', key: 'Payment approval, agent usage, policy restriction and both legacy access decisions.', overrides: 'Decisions changed from the recommended action.', locked: 'Permissions restricted by policy.', manual: 'Legacy access decisions linked to manual removal tasks.' })[filter]}>
+      <SectionTitle title={tab === 'decision' ? 'Decisions' : 'Provisioning'} description={history ? 'Recorded transitions for the lifecycle event.' : ({ all: 'Latest access records and completed controlled tasks.', key: 'Payment approval, agent usage, policy restriction and both legacy access decisions.', overrides: 'Decisions changed from the recommended action.', locked: 'Permissions restricted by policy.', manual: 'Legacy access records and controlled task completion evidence.' })[filter]}>
         <span className="muted-label">{records.length} records</span>
       </SectionTitle>
       {records.length ? <table><thead><tr>{(tab === 'decision' ? ['Identity / access', 'Recommended', 'Decided', 'Decided by', 'Policy', 'Timestamp', 'Comment'] : ['Identity / access', 'How', 'Status', 'Owner', 'SLA / due', 'Completion reference']).map(header => <th key={header}>{header}</th>)}</tr></thead><tbody>{records.map(record => {
+        if (isManualFulfillment(record)) return <ManualFulfillmentRow key={record.id} record={record} type={tab} onOpen={() => setDetail({ type: 'manual', record })} />;
         const row = byId[record.rowId];
         const entry = tab === 'decision' ? decisionDetails(record, row, state) : null;
         const locked = entry?.status === 'Policy-locked' || row.id === 'a-payment';
@@ -95,7 +100,12 @@ export default function Evidence({ state, navigate, workflow = false }) {
     </section>
     {history && state.lifecycleEvidence.length > 0 && <section className="panel lifecycle-history"><SectionTitle title="Lifecycle history" description="Completion of the applied event and its operational tasks." /><table aria-label="Lifecycle history"><thead><tr><th>Event / identity</th><th>Status</th><th>Reason</th><th>Recorded by</th><th>Timestamp</th><th>Linked task</th></tr></thead><tbody>{state.lifecycleEvidence.map(record => <tr key={record.id}><td>{record.eventId}<small className="cell-subtitle">{record.identity}</small></td><td><Badge>{record.status}</Badge></td><td>{record.reason}</td><td>{record.actor}</td><td>{formatTime(record.timestamp)}</td><td>{record.task || '—'}</td></tr>)}</tbody></table></section>}
     {policyDetail && <PolicyDetails {...policyDetail} state={state} onClose={closePolicy} />}
-    {detail && <Drawer title={resourceName(detailRow)} subtitle={detail.type === 'decision' ? 'ACCESS DECISION' : 'PROVISIONING RECORD'} onClose={close}>
+    {detail && isManualFulfillment(detail.record) && <Drawer title={detail.record.action} subtitle={detail.record.category.toUpperCase()} onClose={close}>
+      <dl><Field label="Event">{detail.record.eventId} · Workday</Field><Field label="Actor"><Actor name={detail.record.actor} /></Field><Field label="Action">{detail.record.action}</Field><Field label="Target"><ApplicationName appId={detail.record.applicationId} /></Field><Field label="Entitlement / resource">{detail.record.resource}</Field><Field label="ServiceNow task">{detail.record.task}</Field><Field label="Result"><Badge>{detail.record.result}</Badge></Field><Field label="Affected identities">{detail.record.rowIds.map(id => <div key={id}>{byId[id].scope === 'outbound' ? <AgentName>{identityLabel(byId[id])}</AgentName> : identityLabel(byId[id])}</div>)}</Field><Field label="Completion reference">{detail.record.reference}</Field><Field label="Verification note">{detail.record.note}</Field><Field label="Timestamp">{formatTime(detail.record.timestamp)}</Field></dl>
+      <Notice>Martin Keller completed the manual access removal. The original access decisions and policy evidence remain recorded separately.</Notice>
+      <Button variant="secondary" onClick={() => { setTab('decision'); close(); }}>View decisions</Button>
+    </Drawer>}
+    {detail && !isManualFulfillment(detail.record) && <Drawer title={resourceName(detailRow)} subtitle={detail.type === 'decision' ? 'ACCESS DECISION' : 'PROVISIONING RECORD'} onClose={close}>
       <dl><Field label="Event">WD-MOV-2026-0842 · Workday</Field><Field label="Identity">{detailRow.scope === 'outbound' ? <AgentName>{identityLabel(detailRow)}</AgentName> : identityLabel(detailRow)}</Field><Field label="Access">{detailRow.scope === 'inbound' ? <AgentName /> : resourceName(detailRow)}</Field>{detailRow.entitlement && <Field label="Application"><ApplicationName appId={entitlementById[detailRow.entitlement].app} /></Field>}
         {detailDecision ? <>
           <Field label="Recommended">{actionLabel(detailDecision.recommendedAction)}</Field><Field label="Decided">{detailDecision.status === 'Policy-locked' ? 'Not permitted by policy · POL-AI-303' : detailDecision.decidedAction ? actionLabel(detailDecision.decidedAction) : 'Not decided'}</Field><Field label="Status">{detailDecision.status}</Field>

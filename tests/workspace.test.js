@@ -1,8 +1,28 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { workspacePages, pageRows, lifecycleEvents } from '../src/data/workspace.js';
-import { agents, identities, entitlements } from '../src/data/catalog.js';
+import { agents, identities, entitlements, movers } from '../src/data/catalog.js';
+import { SCENARIO } from '../src/data/scenario.js';
 import { demoReducer as reduce, initialState, agentAccess } from '../src/demo/state.js';
+
+test('joiner and leaver dates follow HR month boundaries with consistent statuses and unchanged mover facts', () => {
+  assert.deepEqual(lifecycleEvents.filter(event => event.type === 'Joiner').map(({ effective, status }) => ({ effective, status })), [
+    { effective: 'Thursday, 1 October 2026', status: 'Completed' },
+    { effective: 'Thursday, 15 October 2026', status: 'Awaiting effective date' },
+    { effective: 'Sunday, 1 November 2026', status: 'Awaiting effective date' },
+  ]);
+  assert.deepEqual(lifecycleEvents.filter(event => event.type === 'Leaver').map(event => event.effective), ['Wednesday, 30 September 2026', 'Thursday, 1 October 2026']);
+  for (const event of lifecycleEvents.filter(event => event.type !== 'Mover')) {
+    const at = Date.parse(event.effective);
+    const date = new Date(at);
+    const endOfMonth = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+    assert.ok([1, 15, endOfMonth].includes(date.getUTCDate()));
+    assert.equal(event.status, at < Date.parse(SCENARIO.receivedAt) ? 'Completed' : 'Awaiting effective date');
+  }
+  assert.deepEqual(lifecycleEvents.filter(event => event.type === 'Mover').map(event => event.effective), movers.map(event => event.effective));
+  assert.equal(lifecycleEvents[0].effective, 'Monday, 19 October 2026');
+  assert.equal(lifecycleEvents[0].received, '13 Oct 2026 · 09:00 UTC');
+});
 
 test('workspace breadth agrees with the enterprise catalog and program figures', () => {
   assert.equal(lifecycleEvents.filter(event => event.type === 'Mover').length, 4);

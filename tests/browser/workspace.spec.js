@@ -42,7 +42,7 @@ test('Provisioning immediately shows changed connected rows and filters unchange
   }
   await expectChangedRows(0);
   await unchanged.check();
-  await expect(rows).toHaveCount(13);
+  await expect(rows).toHaveCount(12);
   await expect(accessRow(page, 'h-sap')).toContainText('No change required');
   await expect(accessRow(page, 'a-payment')).toHaveCount(0);
   await expect(connected).toContainText('0 of 7 changes provisioned');
@@ -51,7 +51,7 @@ test('Provisioning immediately shows changed connected rows and filters unchange
   await provision(page);
   await expectChangedRows(7);
   await unchanged.check();
-  await expect(rows).toHaveCount(13);
+  await expect(rows).toHaveCount(12);
   await expect(accessRow(page, 'h-sap')).toContainText('Retained');
   await expect(connected).toContainText('7 of 7 changes provisioned');
   await unchanged.uncheck();
@@ -173,6 +173,7 @@ test('unchanged access is hidden, comments are tooltips, and audit filters retai
   await page.goto('/');
   await recommend(page);
   await changeRow(page, 'h-budget', 'Do not grant', 'Budget approval stays with the Finance Director.');
+  await changeRow(page, 'h-bi', 'Remove', 'Finance reporting uses the management dashboard.');
   await decideAll(page);
   await applyDecisions(page);
   await expect(page.getByLabel('Show unchanged access')).not.toBeChecked();
@@ -181,14 +182,15 @@ test('unchanged access is hidden, comments are tooltips, and audit filters retai
   await expect(accessRow(page, 'h-sap')).toHaveCount(0);
   await expect(accessRow(page, 'a-payment')).toHaveCount(0);
   await expect(page.locator('.policy-count-line')).toHaveText('1 permission not permitted by policy · POL-AI-303');
-  const comment = accessRow(page, 'h-budget').getByRole('button', { name: 'Review comment: Budget approval stays with the Finance Director.' });
-  await expect(accessRow(page, 'h-budget')).not.toContainText('Budget approval stays with the Finance Director.');
+  await expect(accessRow(page, 'h-budget')).toHaveCount(0);
+  const comment = accessRow(page, 'h-bi').getByRole('button', { name: 'Review comment: Finance reporting uses the management dashboard.' });
+  await expect(accessRow(page, 'h-bi')).not.toContainText('Finance reporting uses the management dashboard.');
   await comment.focus();
-  await expect(page.getByRole('tooltip')).toHaveText('Budget approval stays with the Finance Director.');
+  await expect(page.getByRole('tooltip')).toHaveText('Finance reporting uses the management dashboard.');
   await page.getByLabel('Show unchanged access').check();
   await expect(accessRow(page, 'h-sap')).toContainText('Retained');
   await nav(page, 'Audit trail');
-  for (const [name, count] of [['Key controls', 5], ['Overrides', 1], ['Policy-locked', 1], ['Manual tasks', 2], ['All (16)', 16]]) {
+  for (const [name, count] of [['Key controls', 5], ['Overrides', 2], ['Policy-locked', 1], ['Manual tasks', 2], ['All (16)', 16]]) {
     await page.getByRole('button', { name, exact: true }).click();
     await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(count);
   }
