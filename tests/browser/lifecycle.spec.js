@@ -214,7 +214,7 @@ test('audit policy drawers show relevant rules and preserve filter, history, rec
   await page.getByRole('button', { name: 'Close details', exact: true }).click();
   await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(16);
   const policies = page.locator('.evidence-panel .policy-link');
-  expect(await policies.count()).toBe(17);
+  expect(await policies.count()).toBe(18);
   await accessRow(page, 'a-payment').getByRole('button', { name: 'View policy POL-AI-303', exact: true }).click();
   await page.keyboard.press('Shift+R');
   await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();

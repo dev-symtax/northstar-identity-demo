@@ -22,7 +22,7 @@ test('full approval and provisioning path preserves audit history, persistence a
   await expectFullyInViewport(page, page.locator('.exception-panel'));
   await decideAll(page);
   await page.getByRole('tab', { name: 'Human access', exact: true }).click();
-  await expect(page.locator('.exception-panel')).toContainText('Approved · activates after Accounts Receivable Operator is removed');
+  await expect(page.locator('.exception-panel')).toContainText('Approved · Activates after conflicting access is removed');
   await page.getByRole('button', { name: 'View agent permissions', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'AI Agent access', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(accessRow(page, 'a-payment')).toContainText('Not permitted by policy');
@@ -83,7 +83,7 @@ test('full approval and provisioning path preserves audit history, persistence a
   expect(errors).toEqual([]);
 });
 
-test('Apply decisions stays disabled until both scopes and the policy violation are resolved', async ({ page }) => {
+test('Apply decisions stays disabled until both scopes and the SoD review are resolved', async ({ page }) => {
   await page.goto('/');
   await recommend(page);
   const apply = page.getByRole('button', { name: 'Apply decisions', exact: true }).first();
@@ -149,7 +149,7 @@ test('Budget Approval override requires a comment and is reflected in provisioni
   expect((bundle.provisioningEvidence || bundle.fulfillmentEvidence).filter(record => record.rowId === 'h-budget').at(-1).status).toBe('Not granted');
 });
 
-for (const resolution of ['Remove Accounts Receivable Operator', 'Deny Payment Approval']) {
+for (const resolution of ['Keep removal', 'Deny SAP Payment Approval']) {
   test(`SoD edit is blocked until resolved with ${resolution}`, async ({ page }) => {
     await page.goto('/');
     await recommend(page);
@@ -157,22 +157,22 @@ for (const resolution of ['Remove Accounts Receivable Operator', 'Deny Payment A
     const before = (await storedState(page)).accessDecisions['h-ar'];
     await page.getByRole('tab', { name: 'Human access', exact: true }).click();
     await changeRow(page, 'h-ar', 'Keep', 'Receivables responsibility is retained for the month-end transition.');
-    await expect(page.getByText('SoD conflict · POL-SOD-017: Accounts Receivable Operator and SAP Payment Approval cannot be held together', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Remove Accounts Receivable Operator', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Deny Payment Approval', exact: true })).toBeVisible();
+    await expect(page.getByText('POL-SOD-017 prevents Accounts Receivable Operator and SAP Payment Approval from being active together.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Keep removal', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Deny SAP Payment Approval', exact: true })).toBeVisible();
     expect((await storedState(page)).accessDecisions['h-ar']).toEqual(before);
     await expect(page.getByRole('button', { name: 'Apply decisions', exact: true }).first()).toBeDisabled();
     await page.getByRole('button', { name: resolution, exact: true }).click();
-    await expect(page.getByText('SoD conflict · POL-SOD-017: Accounts Receivable Operator and SAP Payment Approval cannot be held together', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('POL-SOD-017 prevents Accounts Receivable Operator and SAP Payment Approval from being active together.', { exact: true })).toHaveCount(0);
     const after = await storedState(page);
-    expect(after.accessDecisions['h-ar'].decidedAction).toBe(resolution === 'Remove Accounts Receivable Operator' ? 'REMOVE' : 'KEEP');
-    expect(after.accessDecisions['h-payment'].decidedAction).toBe(resolution === 'Remove Accounts Receivable Operator' ? 'GRANT' : 'DO_NOT_GRANT');
+    expect(after.accessDecisions['h-ar'].decidedAction).toBe(resolution === 'Keep removal' ? 'REMOVE' : 'KEEP');
+    expect(after.accessDecisions['h-payment'].decidedAction).toBe(resolution === 'Keep removal' ? 'GRANT' : 'DO_NOT_GRANT');
     await applyDecisions(page);
     await provision(page);
     await expandConnected(page);
-    if (resolution === 'Deny Payment Approval') await page.getByLabel('Show unchanged access', { exact: true }).check();
-    await expect(accessRow(page, 'h-ar')).toContainText(resolution === 'Remove Accounts Receivable Operator' ? 'Removed' : 'Retained');
-    if (resolution === 'Remove Accounts Receivable Operator') await expect(accessRow(page, 'h-payment')).toContainText('Granted');
+    if (resolution === 'Deny SAP Payment Approval') await page.getByLabel('Show unchanged access', { exact: true }).check();
+    await expect(accessRow(page, 'h-ar')).toContainText(resolution === 'Keep removal' ? 'Removed' : 'Retained');
+    if (resolution === 'Keep removal') await expect(accessRow(page, 'h-payment')).toContainText('Granted');
     else {
       await expect(accessRow(page, 'h-payment')).toHaveCount(0);
       await nav(page, 'Audit trail');

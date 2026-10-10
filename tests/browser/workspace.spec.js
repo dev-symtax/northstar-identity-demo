@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { accessRow, assertProductLanguage, nav, recommend, decideAll, applyDecisions, provision, changeRow } from '../helpers/iga-flow.js';
+import { accessRow, assertProductLanguage, nav, recommend, decideAll, decidePayment, applyDecisions, provision, changeRow } from '../helpers/iga-flow.js';
 import { assertLogoConsistency, verifyLogoCatalog } from '../helpers/application-logos.js';
 
 test('Overview Directory contains only core dimensions while Lifecycle events retains movers', async ({ page }) => {
@@ -113,6 +113,20 @@ test('portraits, profile, favicon and body/control accessibility are consistent'
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto('/');
   await expect(page).toHaveTitle('Northstar Identity · Meridian Global');
+  const tenantLogo = page.locator('.tenant img[alt="Meridian Global"]');
+  await expect(tenantLogo).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Meridian Global', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('link', { name: 'Northstar Identity', exact: true })).toBeVisible();
+  await expect(page.locator('.tenant')).toContainText('Meridian Global');
+  await expect.poll(() => tenantLogo.evaluate(img => img.complete && img.naturalWidth === 2172 && img.naturalHeight === 724)).toBe(true);
+  expect(await tenantLogo.evaluate(img => {
+    const mark = img.parentElement;
+    const style = getComputedStyle(mark);
+    const bounds = mark.getBoundingClientRect();
+    const image = img.getBoundingClientRect();
+    return { width: bounds.width, height: bounds.height, background: style.backgroundColor,
+      border: style.borderWidth, shadow: style.boxShadow, aspectRatio: image.width / image.height };
+  })).toEqual({ width: 31, height: 31, background: 'rgba(0, 0, 0, 0)', border: '0px', shadow: 'none', aspectRatio: 3 });
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', /^data:image\/svg\+xml,/);
   for (const name of ['Patrick Sena', 'Sarah Miller']) {
     const images = page.getByRole('img', { name, exact: true });
@@ -158,14 +172,15 @@ test('Reject requires a comment, reverses the action, records feedback and enfor
   await editor.getByRole('button', { name: 'Save change', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Decision recorded');
   await expect(accessRow(page, 'h-bi')).toContainText('Changed from Keep to Remove');
+  await decidePayment(page);
   await accessRow(page, 'h-ar').getByRole('button', { name: 'Reject', exact: true }).click();
   editor = page.locator('[data-change-for="h-ar"]');
   await expect(editor.getByLabel('Decision', { exact: true })).toHaveValue('KEEP');
   await editor.getByLabel('Comment', { exact: true }).fill('Receivables responsibilities are retained during transition.');
   await editor.getByRole('button', { name: 'Save change', exact: true }).click();
-  await expect(page.getByText(/SoD conflict · POL-SOD-017/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Remove Accounts Receivable Operator', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Deny Payment Approval', exact: true })).toBeVisible();
+  await expect(page.getByText('POL-SOD-017 prevents Accounts Receivable Operator and SAP Payment Approval from being active together.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Keep removal', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Deny SAP Payment Approval', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Apply decisions', exact: true })).toBeDisabled();
 });
 

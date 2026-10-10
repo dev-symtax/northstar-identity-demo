@@ -196,12 +196,14 @@ test('human payment approval survives action replay and reconfirmation without g
   assert.equal(provisioned.tasks['a-payment'].status, 'Not permitted by policy');
 });
 
-test('SoD guardrail blocks Keep on receivables while payment is pending or approved', () => {
-  for (const state of [evaluate(initialState()), approve(evaluate(initialState()))]) {
-    const result = decide(state, 'h-ar', 'KEEP', 'Operational duties are still required.');
-    assert.equal(result, state);
-    assert.equal(decision(result, 'h-ar').decidedAction, null);
-  }
+test('SoD guardrail allows receivables Keep while payment is pending, and blocks it after approval', () => {
+  const pending = evaluate(initialState());
+  const kept = decide(pending, 'h-ar', 'KEEP', 'Operational duties are still required.');
+  assert.equal(decision(kept, 'h-ar').decidedAction, 'KEEP');
+  assert.equal(approve(kept), kept);
+  const approved = approve(pending);
+  assert.equal(decision(approved, 'h-ar').decidedAction, 'REMOVE');
+  assert.equal(decide(approved, 'h-ar', 'KEEP', 'Operational duties are still required.'), approved);
 });
 
 test('SoD deny-payment resolution atomically saves the attempted receivables Keep', () => {
@@ -473,7 +475,7 @@ test('version 2 applied sessions migrate ServiceNow decisions and preserve appro
     { type: 'COMPLETE_LEGACY', reference: 'DBA-OLD-0842', note: 'Both removals independently verified.' },
   ];
   const migrated = restore({ version: 2, actions: legacyActions });
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, 4);
   assert.equal(migrated.applied, true);
   assert.equal(migrated.legacyTask.status, 'Completed');
   assert.equal(decision(migrated, 'h-payment').comment, 'Approval retained from the prior version.');

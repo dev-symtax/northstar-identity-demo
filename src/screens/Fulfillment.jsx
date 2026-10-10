@@ -52,7 +52,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
 
   if (!state.applied) return <>
     <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description="Applied access decisions generate changes scheduled for the effective date." />
-    <Empty title="No access decisions applied" action="Review access recommendations" onAction={() => navigate(2)}>Decide each access recommendation and resolve the policy violation before applying changes.</Empty>
+    <Empty title="No access decisions applied" action="Review access recommendations" onAction={() => navigate(2)}>Decide each access recommendation and resolve the SoD review before applying changes.</Empty>
   </>;
 
   function openTask() {
@@ -102,7 +102,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
         <td><Badge>{actionLabel(getAccessDecision(row, state).decidedAction)}</Badge>{getAccessDecision(row, state).comment && <CommentTooltip comment={getAccessDecision(row, state).comment} />}</td><td><Badge>{fulfillmentStatus(row, state)}</Badge></td>
       </tr>)}</tbody></table>}
       <div className="policy-count-line"><ShieldCheck size={18} /><span>1 permission not permitted by policy · POL-AI-303</span></div>
-      <div className="access-bottom"><ShieldCheck size={16} /><span>{getAccessDecision(decisions.find(row => row.id === 'h-payment'), state).decidedAction === 'GRANT' ? 'POL-SOD-017 · Accounts Receivable Operator is removed before SAP Payment Approval is granted.' : 'POL-SOD-017 · Accounts Receivable Operator and SAP Payment Approval cannot be held together.'}</span></div>
+      <div className="access-bottom"><ShieldCheck size={16} /><span>{getAccessDecision(decisions.find(row => row.id === 'h-payment'), state).decidedAction === 'GRANT' ? state.fulfillmentStarted ? 'POL-SOD-017 · Accounts Receivable Operator was removed before SAP Payment Approval was granted.' : 'POL-SOD-017 · Accounts Receivable Operator must be removed before SAP Payment Approval can be activated.' : 'POL-SOD-017 · Accounts Receivable Operator and SAP Payment Approval cannot be held together.'}</span></div>
     </section>
     <section className={`panel legacy-panel ${hasManualTask && !legacyComplete ? 'task-attention' : ''}`} ref={legacyRef}>
       <SectionTitle title="Disconnected application · manual task" description={<ApplicationName appId="legacy" />}><Badge tone={!hasManualTask || legacyComplete ? 'green' : 'amber'}>{!hasManualTask ? 'Not required' : legacyComplete ? 'Completed' : state.fulfillmentStarted ? 'Task open' : 'Scheduled'}</Badge></SectionTitle>

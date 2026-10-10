@@ -24,6 +24,7 @@
 .recommendations-screen .recommendation-sod .notice { margin-bottom: 0; }
 .recommendations-screen .recommendation-sod p { margin-top: 5px; font-size: 10px; }
 .recommendations-screen .recommendation-resolution { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.recommendations-screen .drawer .recommendation-resolution .button { max-width: 100%; white-space: normal; }
 .recommendations-screen .recommendation-lock-row .notice { margin-bottom: 0; }
 .recommendations-screen .recommendation-review-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .recommendations-screen .recommendation-apply { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 24px 0; font-size: 11px; color: var(--muted); }

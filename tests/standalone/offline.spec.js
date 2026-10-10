@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 import { assertLogoConsistency, verifyLogoCatalog } from '../helpers/application-logos.js';
 import { exerciseCountersAndManualStages } from '../helpers/decision-counters-manual-stages.js';
+import { exerciseApprovalFirstSod, exerciseKeepFirstSod } from '../helpers/sod-dependency.js';
 import { exerciseRecommendationOverrides } from '../helpers/recommendation-overrides.js';
 import { exerciseExclusiveDecisionControls, exerciseScheduledAuditNavigation } from '../helpers/decision-audit-actions.js';
 import {
@@ -41,6 +42,26 @@ function observeRequests(page) {
   return unexpected;
 }
 
+for (const resolution of ['Remove Accounts Receivable Operator', 'Deny SAP Payment Approval']) {
+  test(`offline receivables-first SoD resolution: ${resolution}`, async ({ page, context }) => {
+    const unexpected = observeRequests(page);
+    await supplyOfflineDocument(context);
+    await page.goto(appUrl);
+    await disableNetworking(context);
+    await exerciseKeepFirstSod(page, resolution);
+    expect(unexpected).toEqual([]);
+  });
+}
+
+test('offline approval-first dependency blocks Keep and preserves explicit resolutions through reload and reset', async ({ page, context }) => {
+  const unexpected = observeRequests(page);
+  await supplyOfflineDocument(context);
+  await page.goto(appUrl);
+  await disableNetworking(context);
+  await exerciseApprovalFirstSod(page);
+  expect(unexpected).toEqual([]);
+});
+
 test('single HTML embeds scripts, styles, assets and exact local fonts and license while offline', async ({ page, context }) => {
   expect(await readdir(output)).toEqual(['index.html']);
   const html = await readFile(new URL('index.html', output), 'utf8');
@@ -62,6 +83,14 @@ test('single HTML embeds scripts, styles, assets and exact local fonts and licen
   await expect(page.locator('script[src], link[rel="stylesheet"]')).toHaveCount(0);
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', /^data:image\/svg\+xml,/);
   await expect(page).toHaveTitle('Northstar Identity · Meridian Global');
+  const tenantLogo = page.locator('.tenant img[alt="Meridian Global"]');
+  await expect(tenantLogo).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Meridian Global', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('link', { name: 'Northstar Identity', exact: true })).toBeVisible();
+  await expect.poll(() => tenantLogo.evaluate(img => img.complete && img.naturalWidth === 2172 && img.naturalHeight === 724)).toBe(true);
+  const tenantSource = await tenantLogo.getAttribute('src');
+  expect(tenantSource).toMatch(/^data:image\/png;base64,/);
+  expect(Buffer.from(tenantSource.split(',')[1], 'base64')).toEqual(await readFile(new URL('../../src/assets/logos/meridian-global.png', import.meta.url)));
   await expect(page.locator('script[type="module"]')).toHaveCount(1);
   await expect(page.locator('style')).toHaveCount(1);
   const assets = await page.evaluate(async () => {

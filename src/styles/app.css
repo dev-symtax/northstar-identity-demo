@@ -23,7 +23,8 @@ svg { flex-shrink: 0; vertical-align: middle; }
 .brand > span { color: var(--teal-bright); }
 .mobile-brand { display: none; }
 .tenant { display: flex; align-items: center; gap: 10px; border: 1px solid var(--nav-line); border-radius: var(--radius); padding: 12px 10px; margin: 34px 0 31px; }
-.tenant-logo { background: var(--nav-surface); color: var(--nav-text); width: 31px; height: 31px; display: grid; place-items: center; border-radius: var(--radius); font-family: var(--font-sans); font-size: 18px; font-weight: 600; }
+.tenant-logo { width: 31px; height: 31px; position: relative; flex-shrink: 0; overflow: hidden; }
+.tenant-logo img { position: absolute; display: block; height: auto; max-width: none; }
 .tenant strong { color: var(--nav-text); font-size: 12px; font-weight: 500; display: block; }
 .tenant small { display: block; font-size: 10px; color: var(--nav-muted); margin-top: 2px; }
 .tenant > svg { margin-left: auto; color: var(--nav-muted); }

@@ -6,6 +6,13 @@ import activeDirectoryLogo from '../assets/logos/active-directory.svg';
 import salesforceLogo from '../assets/logos/Salesforce.com_logo.svg';
 import microsoft365Logo from '../assets/logos/Microsoft_365_logo.svg';
 import entraLogo from '../assets/logos/Microsoft_Entra_ID_color_icon.svg';
+import meridianLogo from '../assets/logos/meridian-global.png';
+
+// The compact viewport displays the supplied monogram without changing the PNG.
+export const tenantAssets = {
+  meridian: { name: 'Meridian Global', asset: meridianLogo, width: 2172, height: 724,
+    mark: { x: 195, y: 140, size: 400 } },
+};
 
 import patrickPhoto from '../assets/people/patrick-sena.jpg';
 import sarahPhoto from '../assets/people/sarah-miller.jpg';

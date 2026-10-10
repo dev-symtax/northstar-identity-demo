@@ -2,11 +2,33 @@ import { decisions, applicationById, entitlementById, identities } from '../data
 import { LEGACY_TASK, REVIEWER, SCENARIO } from '../data/scenario.js';
 
 export const STORAGE_KEY = 'northstar-identity-demo-v1';
-const STATE_VERSION = 3;
+const STATE_VERSION = 4;
 const ACTIONS = ['KEEP', 'GRANT', 'REMOVE', 'REVIEW', 'NOT_PERMITTED', 'DO_NOT_GRANT'];
 const REVIEWER_LABEL = `${REVIEWER.name} · ${REVIEWER.role}`;
 const SYSTEM_ACTOR = 'Northstar policy engine';
 const EVENT_ID = 'WD-MOV-2026-0842';
+export const PAYMENT_CONDITION = 'Approved · Activates after conflicting access is removed';
+export const SOD_MESSAGE = 'POL-SOD-017 prevents Accounts Receivable Operator and SAP Payment Approval from being active together.';
+const PAYMENT_ROW = decisions.find(row => row.id === 'h-payment');
+const AR_ROW = decisions.find(row => row.id === 'h-ar');
+
+export function sodDependency(state) {
+  const required = getAccessDecision(PAYMENT_ROW, state).decidedAction === 'GRANT';
+  return { required, conflict: required && getAccessDecision(AR_ROW, state).decidedAction !== 'REMOVE' };
+}
+export function paymentActivationAllowed(tasks) {
+  return tasks[AR_ROW.id]?.status === 'Removed';
+}
+function sodEvidence(required) {
+  return {
+    policyId: 'POL-SOD-017', conflictingEntitlement: 'Accounts Receivable Operator',
+    conflictingRowId: AR_ROW.id, requiredAction: required ? 'REMOVE' : null, required,
+    resolution: required ? 'Remove Accounts Receivable Operator before activating SAP Payment Approval.' : 'SAP Payment Approval denied; Accounts Receivable Operator may remain active.',
+    summary: required
+      ? 'SAP Payment Approval approved conditionally. Accounts Receivable Operator removal required by POL-SOD-017 before activation.'
+      : 'SAP Payment Approval denied. POL-SOD-017 conflict resolved; Accounts Receivable Operator may remain active.',
+  };
+}
 
 export const initialState = () => ({
   version: STATE_VERSION, evaluated: false, applied: false, review: 'pending', reviewNote: '',
@@ -86,18 +108,29 @@ function validComment(value, required = false) {
 }
 function reviewDecision(state, result, note) {
   if (!editable(state) || !['approved', 'rejected'].includes(result) || !validComment(note, true)) return state;
-  if (result === 'approved' && getAccessDecision(decisions.find(row => row.id === 'h-ar'), state).decidedAction === 'KEEP') return state;
-  const row = decisions.find(item => item.id === 'h-payment');
-  const model = decisionFor(row, result === 'approved' ? 'GRANT' : 'DO_NOT_GRANT', note.trim(), 'high-risk-review');
+  const ar = getAccessDecision(AR_ROW, state);
+  if (result === 'approved' && ar.decidedAction === 'KEEP') return state;
+  const row = PAYMENT_ROW;
+  const required = result === 'approved';
+  const model = { ...decisionFor(row, required ? 'GRANT' : 'DO_NOT_GRANT', note.trim(), 'high-risk-review'), sod: sodEvidence(required) };
   const previous = getAccessDecision(row, state);
   if (state.review === result && previous.comment === model.comment) return state;
-  return recordDecisions(state, [[row, model]], { review: result, reviewNote: model.comment });
+  const changes = [[row, model]];
+  if (required) {
+    // Keep existing removal decisions and rationale; only an undecided removal
+    // becomes a new decision required by the explicitly approved dependency.
+    changes.push([AR_ROW, { ...(ar.decidedAction === 'REMOVE' ? ar : decisionFor(AR_ROW, 'REMOVE', '', 'policy-required')), sod: sodEvidence(true) }]);
+  } else if (ar.sod?.required) {
+    // Release a removal selected solely for payment approval back to its role
+    // recommendation. Independently recorded removals remain the user's choice.
+    changes.push([AR_ROW, { ...(ar.decisionSource === 'policy-required' ? recommendation(AR_ROW) : ar), sod: sodEvidence(false) }]);
+  }
+  return recordDecisions(state, changes, { review: result, reviewNote: model.comment });
 }
 export function canApplyDecisions(state) {
   if (!state.evaluated || state.applied || state.review === 'pending') return false;
   if (!decisions.every(row => getAccessDecision(row, state).decidedAction !== null)) return false;
-  const action = id => getAccessDecision(decisions.find(row => row.id === id), state).decidedAction;
-  return action('h-payment') !== 'GRANT' || action('h-ar') === 'REMOVE';
+  return !sodDependency(state).conflict;
 }
 export function decisionSummary(state, { scope, includeUndecided = false } = {}) {
   const byAction = Object.fromEntries(ACTIONS.map(action => [action, 0]));
@@ -148,7 +181,7 @@ function reduceState(state, action) {
     if (row.recommendedAction === 'REVIEW') return action.action === 'DO_NOT_GRANT' ? reviewDecision(state, 'rejected', action.comment) : state;
     const allowed = ['KEEP', 'REMOVE'].includes(row.recommendedAction) ? ['KEEP', 'REMOVE'] : ['GRANT', 'DO_NOT_GRANT'];
     if (!allowed.includes(action.action)) return state;
-    if (row.id === 'h-ar' && action.action === 'KEEP' && state.review !== 'rejected') return state;
+    if (row.id === 'h-ar' && action.action === 'KEEP' && sodDependency(state).required) return state;
     const comment = action.comment ?? '';
     if (!validComment(comment)) return state;
     const decisionSource = action.decisionSource ?? (action.action === row.recommendedAction && !comment.trim() ? 'accepted-recommendation' : 'manual-override');
@@ -157,8 +190,9 @@ function reduceState(state, action) {
       || (decisionSource === 'rejected-recommendation' && action.action === row.recommendedAction)) return state;
     if (!validComment(comment, decisionSource !== 'accepted-recommendation')) return state;
     const model = decisionFor(row, action.action, comment.trim(), decisionSource);
+    if (row.id === 'h-ar' && state.review !== 'pending') model.sod = sodEvidence(sodDependency(state).required);
     const previous = getAccessDecision(row, state);
-    if (previous.decidedAction === model.decidedAction && previous.comment === model.comment) return state;
+    if (previous.decidedAction === model.decidedAction && previous.comment === model.comment && previous.decisionSource === model.decisionSource) return state;
     return recordDecisions(state, [[row, model]]);
   }
   if (action.type === 'REVIEW') return reviewDecision(state, action.result, action.note);
@@ -169,11 +203,12 @@ function reduceState(state, action) {
     if (!validComment(comment, action.resolution === 'deny-payment')) return state;
     if (action.resolution === 'remove-ar') {
       const model = decisionFor(ar, 'REMOVE', comment.trim(), 'manual-override');
+      if (state.review !== 'pending') model.sod = sodEvidence(sodDependency(state).required);
       const previous = getAccessDecision(ar, state);
-      return previous.decidedAction === 'REMOVE' && previous.comment === model.comment ? state : recordDecisions(state, [[ar, model]]);
+      return previous.decidedAction === 'REMOVE' && previous.comment === model.comment && previous.decisionSource === model.decisionSource ? state : recordDecisions(state, [[ar, model]]);
     }
-    const payment = decisions.find(row => row.id === 'h-payment');
-    return recordDecisions(state, [[ar, decisionFor(ar, 'KEEP', comment.trim(), 'manual-override')], [payment, decisionFor(payment, 'DO_NOT_GRANT', comment.trim(), 'high-risk-review')]], {
+    const payment = PAYMENT_ROW;
+    return recordDecisions(state, [[ar, { ...decisionFor(ar, 'KEEP', comment.trim(), 'manual-override'), sod: sodEvidence(false) }], [payment, { ...decisionFor(payment, 'DO_NOT_GRANT', comment.trim(), 'high-risk-review'), sod: sodEvidence(false) }]], {
       review: 'rejected', reviewNote: comment.trim(),
     });
   }
@@ -184,7 +219,7 @@ function reduceState(state, action) {
     return { ...state, applied: true, decisionEvidence: [...state.decisionEvidence, ...obligations], actionCount: state.actionCount + 1 };
   }
   if (action.type === 'RUN_FULFILLMENT') {
-    if (!state.applied || state.fulfillmentStarted) return state;
+    if (!state.applied || state.fulfillmentStarted || !canApplyDecisions({ ...state, applied: false })) return state;
     const tasks = {};
     const evidence = [];
     const ordered = [...decisions].sort((a, b) => Number(getAccessDecision(b, state).decidedAction === 'REMOVE') - Number(getAccessDecision(a, state).decidedAction === 'REMOVE'));
@@ -202,9 +237,13 @@ function reduceState(state, action) {
         status = 'Task open'; detail = { method: LEGACY_TASK.method, owner: 'Martin Keller · Finance Platforms', sla: SCENARIO.legacyDue, reference: LEGACY_TASK.id };
       } else {
         // A conflicting operational permission must be removed before payment approval is activated.
-        if (row.id === 'h-payment' && action === 'GRANT' && tasks['h-ar']?.status !== 'Removed') return;
+        if (row.id === 'h-payment' && action === 'GRANT' && !paymentActivationAllowed(tasks)) return;
         status = action === 'REMOVE' ? 'Removed' : 'Granted';
         detail = { method: row.scope === 'outbound' ? 'Agent permission API' : 'Application connector API', owner: 'Identity Operations', sla: 'Effective date · 08:00 UTC', reference: `API-0842-${row.id.toUpperCase()}` };
+        if (row.id === 'h-payment' && action === 'GRANT') detail.dependency = {
+          policyId: 'POL-SOD-017', rowId: AR_ROW.id, status: tasks[AR_ROW.id].status,
+          completionReference: evidence.find(record => record.rowId === AR_ROW.id && record.status === 'Removed').reference,
+        };
       }
       tasks[row.id] = { status };
       evidence.push(executionRecord(row, status, at, detail));
@@ -311,7 +350,7 @@ export function restoreState(storage) {
     const raw = storage.getItem(STORAGE_KEY);
     if (!raw) return initialState();
     const saved = JSON.parse(raw);
-    if (![2, STATE_VERSION].includes(saved.version) || !Array.isArray(saved.actions) || saved.actions.length > 1000) return initialState();
+    if (![2, 3, STATE_VERSION].includes(saved.version) || !Array.isArray(saved.actions) || saved.actions.length > 1000) return initialState();
     const allowed = ['EVALUATE', 'ACCEPT_ALL', 'DECIDE', 'REVIEW', 'RESOLVE_SOD', 'APPLY_DECISIONS', 'RUN_FULFILLMENT', 'COMPLETE_LEGACY'];
     let replay = initialState();
     for (const action of saved.actions) {
@@ -324,7 +363,14 @@ export function restoreState(storage) {
           if (!getAccessDecision(row, replay).decidedAction) replay = demoReducer(replay, { type: 'DECIDE', rowId: id, action: row.recommendedAction });
         }
       }
-      const next = demoReducer(replay, action);
+      let next = demoReducer(replay, action);
+      // Earlier sessions could approve payment, then accept only the remaining
+      // receivables recommendation. It is already required in the new model;
+      // replay that historical acceptance as the same explicit removal choice.
+      if (next === replay && saved.version < STATE_VERSION && action.type === 'ACCEPT_ALL' && action.scope === 'human'
+        && getAccessDecision(AR_ROW, replay).decisionSource === 'policy-required') {
+        next = demoReducer(replay, { type: 'DECIDE', rowId: AR_ROW.id, action: 'REMOVE', comment: '', decisionSource: 'accepted-recommendation' });
+      }
       if (next === replay) return initialState();
       replay = next;
     }
