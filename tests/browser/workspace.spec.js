@@ -1,6 +1,75 @@
 import { test, expect } from '@playwright/test';
-import { accessRow, assertProductLanguage, nav, recommend, decideAll, applyDecisions, provision, expandConnected, changeRow } from '../helpers/iga-flow.js';
+import { accessRow, assertProductLanguage, nav, recommend, decideAll, applyDecisions, provision, changeRow } from '../helpers/iga-flow.js';
 import { assertLogoConsistency, verifyLogoCatalog } from '../helpers/application-logos.js';
+
+test('Overview Directory contains only core dimensions while Lifecycle events retains movers', async ({ page }) => {
+  await page.goto('/');
+  const directory = page.locator('.directory-section');
+  await expect(directory.getByRole('tab')).toHaveText(['Identities48', 'Applications12', 'AI agents4']);
+  await expect(directory).not.toContainText(/Mover/i);
+  for (const [name, count, firstRecord] of [['Identities', 48, 'Sarah Miller'], ['Applications', 12, 'SAP S/4HANA'], ['AI agents', 4, 'Finance Operations Agent']]) {
+    await directory.getByRole('tab', { name: `${name} ${count}`, exact: true }).click();
+    await expect(directory.locator('tbody tr')).toHaveCount(count);
+    await expect(directory.locator('tbody tr').first()).toContainText(firstRecord);
+  }
+  await nav(page, 'Lifecycle events');
+  await page.getByRole('button', { name: 'Mover 4', exact: true }).click();
+  await expect(page.locator('.workspace-records tbody tr')).toHaveCount(4);
+  const sarah = page.locator('[data-record-id="WD-MOV-2026-0842"]');
+  await expect(sarah).toContainText('Mover');
+  await sarah.getByRole('button').first().click();
+  await expect(page.locator('.event-source-label')).toContainText('Workday mover event');
+  await expect(page.locator('main')).toContainText('Finance Analyst');
+  await expect(page.locator('main')).toContainText('Finance Manager');
+});
+
+test('Provisioning immediately shows changed connected rows and filters unchanged rows without changing counts', async ({ page }) => {
+  await page.goto('/');
+  await recommend(page);
+  await decideAll(page);
+  await applyDecisions(page);
+  const connected = page.locator('.provisioning-connected');
+  const unchanged = page.getByLabel('Show unchanged access');
+  const rows = connected.locator('tbody tr');
+  const changedIds = ['a-ar', 'a-dashboard', 'h-ar', 'h-budget', 'h-dashboard', 'h-payment', 'h-snow-approver'];
+  async function expectChangedRows(completed) {
+    await expect(unchanged).not.toBeChecked();
+    await expect(rows).toHaveCount(7);
+    expect(await rows.evaluateAll(items => items.map(row => row.dataset.rowId).sort())).toEqual(changedIds);
+    await expect(rows.first()).toBeVisible();
+    await expect(connected).toContainText(`${completed} of 7 changes provisioned`);
+    await expect(page.locator('.stats-row')).toContainText(`${completed} of 7`);
+  }
+  await expectChangedRows(0);
+  await unchanged.check();
+  await expect(rows).toHaveCount(13);
+  await expect(accessRow(page, 'h-sap')).toContainText('No change required');
+  await expect(accessRow(page, 'a-payment')).toHaveCount(0);
+  await expect(connected).toContainText('0 of 7 changes provisioned');
+  await unchanged.uncheck();
+  await expectChangedRows(0);
+  await provision(page);
+  await expectChangedRows(7);
+  await unchanged.check();
+  await expect(rows).toHaveCount(13);
+  await expect(accessRow(page, 'h-sap')).toContainText('Retained');
+  await expect(connected).toContainText('7 of 7 changes provisioned');
+  await unchanged.uncheck();
+  await expectChangedRows(7);
+  await page.getByRole('button', { name: 'Hide results', exact: true }).click();
+  await expect(rows).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show results', exact: true }).click();
+  await expectChangedRows(7);
+  await nav(page, 'Access recommendations');
+  await nav(page, 'Provisioning');
+  await expectChangedRows(7);
+  await page.reload();
+  // Reload preserves the existing Overview entry; reopening Sarah resumes Provisioning.
+  await nav(page, 'Lifecycle events');
+  await page.locator('[data-record-id="WD-MOV-2026-0842"]').getByRole('button').first().click();
+  await expect(page.getByRole('heading', { name: 'Provisioning', exact: true })).toBeVisible();
+  await expectChangedRows(7);
+});
 
 test('all sidebar pages are populated, read-only, and their rows open details', async ({ page }) => {
   const errors = [];
@@ -107,9 +176,8 @@ test('unchanged access is hidden, comments are tooltips, and audit filters retai
   await decideAll(page);
   await applyDecisions(page);
   await expect(page.getByLabel('Show unchanged access')).not.toBeChecked();
-  await expect(page.locator('.provisioning-connected tbody tr')).toHaveCount(0);
+  await expect(page.locator('.provisioning-connected tbody tr')).toHaveCount(7);
   await provision(page);
-  await expandConnected(page);
   await expect(accessRow(page, 'h-sap')).toHaveCount(0);
   await expect(accessRow(page, 'a-payment')).toHaveCount(0);
   await expect(page.locator('.policy-count-line')).toHaveText('1 permission not permitted by policy · POL-AI-303');

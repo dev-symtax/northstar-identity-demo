@@ -53,6 +53,8 @@ test('single HTML embeds scripts, styles, assets and exact local fonts and licen
   await disableNetworking(context);
   expect(await page.evaluate(() => navigator.onLine)).toBe(false);
   await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+  await expect(page.locator('.directory-section').getByRole('tab')).toHaveText(['Identities48', 'Applications12', 'AI agents4']);
+  await expect(page.locator('.directory-section')).not.toContainText(/Mover/i);
   await assertProductLanguage(page);
   await expect(page.locator('script[src], link[rel="stylesheet"]')).toHaveCount(0);
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', /^data:image\/svg\+xml,/);
@@ -154,8 +156,19 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await expect(accessRow(page, 'a-payment')).toHaveClass(/agent-block-highlight/);
   await expect(accessRow(page, 'a-payment')).toContainText('Not permitted by policy');
   await applyDecisions(page);
+  await expect(page.getByLabel('Show unchanged access')).not.toBeChecked();
+  await expect(page.locator('.provisioning-connected tbody tr')).toHaveCount(7);
+  await expect(page.locator('.provisioning-connected')).toContainText('0 of 7 changes provisioned');
   await provision(page);
   await expectFullyInViewport(page, page.locator('.legacy-panel'));
+  await expect(page.locator('.provisioning-connected tbody tr')).toHaveCount(7);
+  await expect(page.locator('.provisioning-connected')).toContainText('7 of 7 changes provisioned');
+  await page.getByLabel('Show unchanged access').check();
+  await expect(page.locator('.provisioning-connected tbody tr')).toHaveCount(13);
+  await expect(accessRow(page, 'h-sap')).toContainText('Retained');
+  await page.getByLabel('Show unchanged access').uncheck();
+  await expect(page.locator('.provisioning-connected tbody tr')).toHaveCount(7);
+  await expect(accessRow(page, 'h-sap')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'View audit trail', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveClass(/primary/);

@@ -17,7 +17,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   const [reference, setReference] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
-  const [connectedExpanded, setConnectedExpanded] = useState(false);
+  const [connectedExpanded, setConnectedExpanded] = useState(true);
   const [showUnchanged, setShowUnchanged] = useState(false);
   const legacyRef = useRef(null);
   const openLegacy = legacyTaskRows(state);
@@ -60,7 +60,6 @@ export default function Fulfillment({ state, dispatch, navigate }) {
     setTaskOpen(false);
   }
   function provision() {
-    setConnectedExpanded(false);
     dispatch({ type: 'RUN_FULFILLMENT' });
   }
 
@@ -83,7 +82,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
         <button type="button" className="text-link" aria-expanded={showConnected} onClick={() => setConnectedExpanded(value => !value)}>{showConnected ? 'Hide results' : 'Show results'}<ChevronDown size={14} /></button>
         <Badge tone="blue">{state.fulfillmentStarted ? 'Completed' : 'Scheduled'}</Badge>
       </SectionTitle>
-      <label className="unchanged-toggle"><input type="checkbox" checked={showUnchanged} onChange={event => { setShowUnchanged(event.target.checked); setConnectedExpanded(true); }} />Show unchanged access</label>
+      <label className="unchanged-toggle"><input type="checkbox" checked={showUnchanged} onChange={event => setShowUnchanged(event.target.checked)} />Show unchanged access</label>
       {showConnected && <table><thead><tr><th>Access</th><th>Identity</th><th>Application</th><th>Decided action</th><th>Status</th></tr></thead><tbody>{tableRows.map(row => <tr key={row.id} data-row-id={row.id}>
         <td><strong>{resourceName(row)}</strong></td><td><span className="scope-label">{row.scope !== 'human' && <Bot size={14} />}{identityLabel(row)}</span></td><td>{row.entitlement ? <ApplicationName appId={entitlementById[row.entitlement].app} /> : 'AI agent'}</td>
         <td><Badge>{actionLabel(getAccessDecision(row, state).decidedAction)}</Badge>{getAccessDecision(row, state).comment && <CommentTooltip comment={getAccessDecision(row, state).comment} />}</td><td><Badge>{fulfillmentStatus(row, state)}</Badge></td>
