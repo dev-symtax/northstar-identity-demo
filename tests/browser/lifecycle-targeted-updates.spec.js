@@ -2,7 +2,8 @@ import { test, expect } from '@playwright/test';
 import { accessRow, applyDecisions, assertProductLanguage, changeRow, COMPLETION_NOTE, COMPLETION_REFERENCE, confirmCompletion, decideAll, downloadAudit, nav, provision, recommend } from '../helpers/iga-flow.js';
 
 const storedState = page => page.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')));
-const manualRecord = page => page.locator('[data-audit-category="controlled-task"]');
+const manualRecords = page => page.locator('[data-audit-category="controlled-task"]');
+const manualRecord = page => page.locator('[data-record-id="MF-SN-TASK-004812-completed"]');
 
 test('Lifecycle Events and detail drawers show varied HR dates without changing Sarah’s mover timing', async ({ page }) => {
   await page.goto('/');
@@ -76,7 +77,7 @@ test('completed controlled task has its own Martin Keller evidence in All, Manua
   await applyDecisions(page);
   await provision(page);
   await page.getByRole('button', { name: 'View audit trail', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'All (16)', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'All (17)', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(manualRecord(page)).toHaveCount(0);
   await page.getByRole('button', { name: 'Return to lifecycle events', exact: true }).click();
   const sarah = page.locator('[data-record-id="WD-MOV-2026-0842"]');
@@ -87,14 +88,15 @@ test('completed controlled task has its own Martin Keller evidence in All, Manua
   const completed = await storedState(page);
   for (const type of ['Decisions', 'Provisioning']) {
     await page.getByRole('tab', { name: type, exact: true }).click();
-    await expect(page.getByRole('tab', { name: type, exact: true })).toHaveText(`${type}17`);
-    await page.getByRole('button', { name: 'All (17)', exact: true }).click();
-    await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(17);
+    await expect(page.getByRole('tab', { name: type, exact: true })).toHaveText(`${type}18`);
+    await page.getByRole('button', { name: 'All (18)', exact: true }).click();
+    await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(18);
+    await expect(manualRecords(page)).toHaveCount(2);
     await expect(manualRecord(page)).toHaveCount(1);
-    for (const text of ['Controlled task', 'SN-TASK-004812', 'Martin Keller', 'Completed manual access removal', COMPLETION_REFERENCE]) await expect(manualRecord(page)).toContainText(text);
+    for (const text of ['Manual fulfillment', 'SN-TASK-004812', 'Martin Keller', 'Completed manual access removal', COMPLETION_REFERENCE]) await expect(manualRecord(page)).toContainText(text);
     await expect(manualRecord(page).getByRole('img', { name: 'Martin Keller', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Manual tasks', exact: true }).click();
-    await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(3);
+    await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(4);
     for (const id of ['h-legacy', 'a-legacy']) {
       await expect(accessRow(page, id)).toContainText(type === 'Decisions' ? 'Remove' : 'Removed');
       if (type === 'Decisions') await expect(accessRow(page, id)).toContainText('Patrick Sena');
@@ -107,9 +109,10 @@ test('completed controlled task has its own Martin Keller evidence in All, Manua
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: 'Manual tasks', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await page.getByLabel('Show full history').check();
-    const total = (type === 'Decisions' ? completed.decisionEvidence : completed.fulfillmentEvidence).length + 1;
+    const total = (type === 'Decisions' ? completed.decisionEvidence : completed.fulfillmentEvidence).length + completed.manualFulfillmentEvidence.length;
     await page.getByRole('button', { name: `All (${total})`, exact: true }).click();
     await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(total);
+    await expect(manualRecords(page)).toHaveCount(2);
     await expect(manualRecord(page)).toHaveCount(1);
     await expect(page.getByRole('table', { name: 'Lifecycle history' }).locator('tbody tr')).toHaveCount(1);
     await page.getByLabel('Show full history').uncheck();
@@ -121,13 +124,14 @@ test('completed controlled task has its own Martin Keller evidence in All, Manua
   }
   const bundle = await downloadAudit(page);
   expect(bundle.manualFulfillmentEvidence).toEqual(completed.manualFulfillmentEvidence);
-  expect(bundle.manualFulfillmentEvidence[0]).toMatchObject({ actor: 'Martin Keller', action: 'Completed manual access removal', target: 'Legacy Finance DB', resource: 'Legacy Finance DB Write', task: 'SN-TASK-004812', result: 'Completed', timestamp: bundle.legacyTask.completedAt, reference: COMPLETION_REFERENCE, note: COMPLETION_NOTE });
+  expect(bundle.manualFulfillmentEvidence[1]).toMatchObject({ actor: 'Martin Keller', action: 'Completed manual access removal', application: 'Legacy Finance DB', target: 'Legacy Finance DB Write', resource: 'Legacy Finance DB Write', task: 'SN-TASK-004812', result: 'Completed within SLA', timestamp: bundle.legacyTask.completedAt, reference: COMPLETION_REFERENCE, note: COMPLETION_NOTE });
   for (const id of ['h-legacy', 'a-legacy']) expect(bundle.decisionEvidence.filter(record => record.rowId === id).at(-1)).toMatchObject({ decidedAction: 'REMOVE', decidedBy: 'Patrick Sena · Head of Identity Governance' });
   await page.reload();
   await nav(page, 'Lifecycle events');
   await expect(sarah).toContainText('Completed');
   await sarah.getByRole('button').first().click();
-  await expect(page.getByRole('button', { name: 'All (17)', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'All (18)', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(manualRecords(page)).toHaveCount(2);
   await expect(manualRecord(page)).toHaveCount(1);
   expect((await storedState(page)).manualFulfillmentEvidence).toEqual(completed.manualFulfillmentEvidence);
   await page.keyboard.press('Shift+R');

@@ -24,7 +24,10 @@ export async function assertProductLanguage(page) {
   const undersized = await page.locator('main p, main td, main th, main li').evaluateAll(elements => elements.filter(element => parseFloat(getComputedStyle(element).fontSize) < 15).map(element => `${element.tagName}.${element.className} ${getComputedStyle(element).fontSize}: ${element.textContent.slice(0,80)}`));
   expect(undersized).toEqual([]);
   expect(visibleCopy).not.toMatch(/Shift\s*\+\s*[GR]|[?&]reset=1/i);
-  expect(visibleCopy).not.toMatch(/\b(?:Inbound|Outbound|Fulfillment|Governance decision|Policy evaluation|Direct application access|Delegated access|High-risk exception|Separation of duties|Never delegated|Workspace date)\b/i);
+  // The three-stage manual audit explicitly uses these fulfillment labels;
+  // the existing product terminology guard still applies everywhere else.
+  const terminologyCopy = visibleCopy.replace(/\bManual fulfillment\b|\bFulfillment (?:method|status)\b/gi, '');
+  expect(terminologyCopy).not.toMatch(/\b(?:Inbound|Outbound|Fulfillment|Governance decision|Policy evaluation|Direct application access|Delegated access|High-risk exception|Separation of duties|Never delegated|Workspace date)\b/i);
 }
 
 export async function nav(page, name) {
@@ -107,7 +110,7 @@ export async function applyDecisions(page) {
   await assertProductLanguage(page);
   await dialog.getByRole('button', { name: 'Apply decisions', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Provisioning', exact: true })).toBeVisible();
-  await expect(page.locator('.fulfillment-banner h2')).toHaveText('Changes scheduled for Monday, 19 October 2026.');
+  await expect(page.locator('.fulfillment-banner h2')).toHaveText('Changes scheduled for Monday, 19 October 2026 · 08:00 UTC.');
   await expect(page.locator('.fulfillment-banner p')).toHaveText('No access has changed yet.');
   await expect(page.getByRole('button', { name: 'Run scheduled provisioning', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Run scheduled provisioning', exact: true })).toHaveClass(/primary/);
@@ -121,7 +124,7 @@ export async function provision(page) {
   await expectFullyInViewport(page, page.locator('.legacy-panel'));
   await expect(page.locator('.legacy-panel')).toBeVisible();
   await expect(page.locator('.legacy-panel')).toContainText('SN-TASK-004812');
-  await expect(page.locator('.legacy-panel')).toContainText('Monday 19 October · 12:00 UTC');
+  await expect(page.locator('.legacy-panel')).toContainText('19 October 2026 · 12:00 UTC');
   await expect(page.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
   await expect(page.locator('.provisioning-run-date')).toHaveText('Run date: Monday, 19 Oct 2026 · 08:00 UTC');
   await assertProductLanguage(page);
@@ -167,7 +170,7 @@ export async function expandConnected(page) {
   if (await expand.count() && await expand.first().isVisible()) await expand.first().click();
 }
 
-export async function assertKeyAuditRecords(page, total = 17) {
+export async function assertKeyAuditRecords(page, total = 18) {
   await expect(page.getByRole('button', { name: `All (${total})`, exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(total);
   await page.getByRole('button', { name: 'Key controls', exact: true }).click();

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, Bot, Check, CheckCircle2, ChevronDown, Clock3, ClipboardCheck, FileCheck2, Play, Server, ShieldCheck, Zap } from 'lucide-react';
 import { decisions, resourceName, entitlementById } from '../data/catalog.js';
 import { ApplicationName } from '../components/ApplicationIcon.jsx';
-import { SCENARIO } from '../data/scenario.js';
+import { LEGACY_TASK, SCENARIO } from '../data/scenario.js';
 import { actionLabel, connectedChangeSummary, connectedProvisioningRows, fulfillmentStatus, getAccessDecision, legacyTaskRows } from '../demo/state.js';
 import { Badge, Button, CommentTooltip, Drawer, Empty, Field, Notice, PageTitle, SectionTitle, Stat } from '../components/UI.jsx';
 import { useStepFocus } from '../components/useStepFocus.js';
@@ -56,7 +56,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   </>;
 
   function openTask() {
-    setReference('CHG-2026-1042 / DBA-VERIFY-0842');
+    setReference(`${LEGACY_TASK.changeReference} / ${LEGACY_TASK.verificationReference}`);
     setNote(humanRemoval && agentRemoval
       ? 'Martin Keller revoked Sarah Miller’s FIN_DB_WRITE membership and removed the Finance Operations Agent’s write mapping for Sarah Miller. User and agent write attempts were verified as denied.'
       : humanRemoval
@@ -78,12 +78,12 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   }
 
   return <>
-    <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description={`Applied access decisions are scheduled for ${SCENARIO.effectiveDate}.`} action={state.fulfillmentStarted ? <Button icon={ArrowRight} onClick={() => navigate(4)}>View audit trail</Button> : <div className="audit-actions"><Button icon={Play} onClick={provision}>Run scheduled provisioning</Button><Button variant="secondary" icon={ArrowRight} onClick={() => navigate(4)}>View audit trail</Button></div>} />
-    <p className="provisioning-run-date">Run date: Monday, 19 Oct 2026 · 08:00 UTC</p>
+    <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description={`Applied access decisions are scheduled for ${SCENARIO.scheduledRun}.`} action={state.fulfillmentStarted ? <Button icon={ArrowRight} onClick={() => navigate(4)}>View audit trail</Button> : <div className="audit-actions"><Button icon={Play} onClick={provision}>Run scheduled provisioning</Button><Button variant="secondary" icon={ArrowRight} onClick={() => navigate(4)}>View audit trail</Button></div>} />
+    <p className="provisioning-run-date">Run date: {SCENARIO.scheduledRunShort}</p>
     <ol className="provisioning-status" aria-label="Provisioning status">{['Scheduled', 'Provisioned', hasManualTask ? 'Manual task open' : 'No manual task', 'Completed'].map((label, index) => { const current = !state.fulfillmentStarted ? 0 : openLegacy.length ? 2 : 3; return <li key={label} className={index === current ? 'current' : index < current ? 'done' : ''}><span>{index < current ? <Check size={16} /> : index + 1}</span>{label}</li>; })}</ol>
     <div className={`fulfillment-banner ${state.fulfillmentStarted && !openLegacy.length ? 'complete' : ''}`}>
       <div className="banner-icon">{state.fulfillmentStarted && !openLegacy.length ? <CheckCircle2 size={26} /> : <Clock3 size={26} />}</div>
-      <div><h2>{state.fulfillmentStarted ? `Role access provisioned. ${openLegacy.length ? '1 manual task open.' : 'No manual tasks open.'}` : `Changes scheduled for ${SCENARIO.effectiveDate}.`}</h2><p>{state.fulfillmentStarted ? 'Automated results and manual task status are recorded against the applied access decisions.' : 'No access has changed yet.'}</p></div>
+      <div><h2>{state.fulfillmentStarted ? `Role access provisioned. ${openLegacy.length ? '1 manual task open.' : 'No manual tasks open.'}` : `Changes scheduled for ${SCENARIO.scheduledRun}.`}</h2><p>{state.fulfillmentStarted ? 'Automated results and manual task status are recorded against the applied access decisions.' : 'No access has changed yet.'}</p></div>
       <Badge tone={state.fulfillmentStarted && !openLegacy.length ? 'green' : 'amber'}>{state.fulfillmentStarted ? openLegacy.length ? 'Task open' : 'Completed' : 'Scheduled'}</Badge>
     </div>
     <div className="stats-row three" ref={summaryRef}>

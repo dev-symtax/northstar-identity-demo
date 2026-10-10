@@ -55,7 +55,7 @@ test('Sarah workflow has clean source information, ServiceNow decisions, scoped 
   await expect(page.getByRole('button', { name: 'Export audit trail', exact: true })).toHaveClass(/secondary/);
   await expect(page.locator('.audit-actions .button')).toHaveText(['Return to lifecycle events', 'Export audit trail']);
   await expect(page.locator('.notice')).toContainText('1 manual task open.');
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(16);
+  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(17);
   await assertLogoConsistency(page, logoSources);
   await page.getByRole('button', { name: 'Return to lifecycle events', exact: true }).click();
   await expect(stepper(page)).toHaveCount(0);
@@ -64,7 +64,7 @@ test('Sarah workflow has clean source information, ServiceNow decisions, scoped 
   await expect(page.getByRole('heading', { name: 'Provisioning', exact: true })).toBeVisible();
   await expect(page.locator('.legacy-panel')).toHaveClass(/task-attention/);
   await expectFullyInViewport(page, page.locator('.legacy-panel'));
-  for (const text of ['Legacy Finance DB', 'SN-TASK-004812', 'Martin Keller', 'Monday 19 October · 12:00 UTC', 'Task open']) await expect(page.locator('.legacy-panel')).toContainText(text);
+  for (const text of ['Legacy Finance DB', 'SN-TASK-004812', 'Martin Keller', '19 October 2026 · 12:00 UTC', 'Task open']) await expect(page.locator('.legacy-panel')).toContainText(text);
   await page.reload();
   await nav(page, 'Lifecycle events');
   await expect(sarahRow(page)).toContainText('Manual task open');
@@ -76,8 +76,8 @@ test('Sarah workflow has clean source information, ServiceNow decisions, scoped 
   await sarahRow(page).getByRole('button').first().click();
   await expect(page.getByRole('heading', { name: 'Audit trail', exact: true })).toBeVisible();
   await expect(stepper(page)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'All (17)', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(17);
+  await expect(page.getByRole('button', { name: 'All (18)', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(18);
   await expect(accessRow(page, 'h-snow-self')).toContainText('Keep');
   await expect(accessRow(page, 'h-snow-approver')).toContainText('Grant');
   await page.getByLabel('Show full history').check();

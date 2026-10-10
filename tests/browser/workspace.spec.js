@@ -190,7 +190,7 @@ test('unchanged access is hidden, comments are tooltips, and audit filters retai
   await page.getByLabel('Show unchanged access').check();
   await expect(accessRow(page, 'h-sap')).toContainText('Retained');
   await nav(page, 'Audit trail');
-  for (const [name, count] of [['Key controls', 5], ['Overrides', 2], ['Policy-locked', 1], ['Manual tasks', 2], ['All (16)', 16]]) {
+  for (const [name, count] of [['Key controls', 5], ['Overrides', 2], ['Policy-locked', 1], ['Manual tasks', 3], ['All (17)', 17]]) {
     await page.getByRole('button', { name, exact: true }).click();
     await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(count);
   }

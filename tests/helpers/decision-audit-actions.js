@@ -132,7 +132,7 @@ export async function exerciseScheduledAuditNavigation(page, afterReload = async
   await expect(page.locator('.audit-actions .button')).toHaveText(['Return to lifecycle events', 'Export audit trail']);
   await expect(page.getByRole('button', { name: 'Return to provisioning', exact: true })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Provisioning', exact: true }).click();
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(16);
+  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(17);
   expect(await stored(page)).toEqual(executed);
   await page.getByRole('button', { name: 'Return to lifecycle events', exact: true }).click();
   await expect(mover).toContainText('Manual task open');
@@ -142,7 +142,7 @@ export async function exerciseScheduledAuditNavigation(page, afterReload = async
   await mover.getByRole('button').first().click();
   await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveClass(/primary/);
   await expect(page.getByRole('button', { name: 'Return to provisioning', exact: true })).toHaveCount(0);
-  await expect(page.locator('[data-audit-category="controlled-task"]')).toHaveCount(1);
+  await expect(page.locator('[data-audit-category="controlled-task"]')).toHaveCount(2);
   await page.keyboard.press('Shift+R');
   expect(await stored(page)).toMatchObject({ applied: false, fulfillmentStarted: false, decisionEvidence: [], fulfillmentEvidence: [], manualFulfillmentEvidence: [] });
 }

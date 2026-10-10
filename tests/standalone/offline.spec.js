@@ -2,6 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 import { assertLogoConsistency, verifyLogoCatalog } from '../helpers/application-logos.js';
+import { exerciseCountersAndManualStages } from '../helpers/decision-counters-manual-stages.js';
 import { exerciseRecommendationOverrides } from '../helpers/recommendation-overrides.js';
 import { exerciseExclusiveDecisionControls, exerciseScheduledAuditNavigation } from '../helpers/decision-audit-actions.js';
 import {
@@ -230,17 +231,18 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await mover.getByRole('button').first().click();
   await expect(page.getByRole('heading', { name: 'Audit trail', exact: true })).toBeVisible();
   await expect(page.getByLabel('Access lifecycle', { exact: true })).toBeVisible();
-  const manualRecord = page.locator('[data-audit-category="controlled-task"]');
-  await expect(page.getByRole('button', { name: 'All (17)', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const manualRecord = page.locator('[data-record-id="MF-SN-TASK-004812-completed"]');
+  await expect(page.locator('[data-audit-category="controlled-task"]')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'All (18)', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(manualRecord).toContainText('Martin Keller');
   await expect(manualRecord).toContainText('SN-TASK-004812');
   await page.getByRole('button', { name: 'Manual tasks', exact: true }).click();
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(3);
+  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(4);
   await manualRecord.getByRole('button', { name: 'Legacy Finance DB Write', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Completed manual access removal' })).toContainText(COMPLETION_REFERENCE);
   await expect(page.getByRole('dialog').getByRole('img', { name: 'Martin Keller', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'All (17)', exact: true }).click();
+  await page.getByRole('button', { name: 'All (18)', exact: true }).click();
   await expect(accessRow(page, 'a-inbound').getByRole('img', { name: 'Finance Operations Agent · AI agent', exact: true })).toBeVisible();
   await accessRow(page, 'a-inbound').locator('.audit-access .table-link').click();
   await expect(page.getByRole('dialog').getByRole('img', { name: 'Finance Operations Agent · AI agent', exact: true })).toBeVisible();
@@ -260,8 +262,8 @@ test('offline full approval path supports provisioning, editable completion, JSO
   expect(bundle.legacyTask.status).toBe('Completed');
   expect(bundle.lifecycleEvidence).toHaveLength(1);
   expect(bundle.accessDecisions).toHaveLength(16);
-  expect(bundle.manualFulfillmentEvidence).toHaveLength(1);
-  expect(bundle.manualFulfillmentEvidence[0]).toMatchObject({ actor: 'Martin Keller', task: 'SN-TASK-004812', result: 'Completed', reference: COMPLETION_REFERENCE });
+  expect(bundle.manualFulfillmentEvidence).toHaveLength(2);
+  expect(bundle.manualFulfillmentEvidence[1]).toMatchObject({ actor: 'Martin Keller', task: 'SN-TASK-004812', result: 'Completed within SLA', reference: COMPLETION_REFERENCE });
   expect(bundle.decisionEvidence.filter(record => record.rowId === 'h-payment').at(-1)).toMatchObject({ decidedAction: 'GRANT', decidedBy: 'Patrick Sena · Head of Identity Governance', decidedAt: '2026-10-13T09:01:00.000Z', comment: REVIEW_COMMENT });
   expect(bundle.decisionEvidence.filter(record => record.rowId === 'a-payment').at(-1)).toMatchObject({ status: 'Policy-locked', decidedAction: 'NOT_PERMITTED', policyId: 'POL-AI-303' });
   for (const record of bundle.provisioningEvidence || bundle.fulfillmentEvidence) expect(record.timestamp.slice(0, 10)).toBe('2026-10-19');
@@ -326,7 +328,7 @@ test('offline Budget Approval edit is carried into the scheduled changes and aud
   await expect(page.locator('.provisioning-connected')).toContainText('0 of 6 changes provisioned');
   await provision(page);
   await nav(page, 'Audit trail');
-  await page.getByRole('button', { name: 'All (16)', exact: true }).click();
+  await page.getByRole('button', { name: 'All (17)', exact: true }).click();
   await expect(accessRow(page, 'h-budget')).toContainText('Changed');
   await expect(accessRow(page, 'h-budget')).toContainText(EDIT_COMMENT);
   const bundle = await downloadAudit(page);
@@ -383,4 +385,18 @@ test.describe('local static-server fallback', () => {
     expect(requests).toEqual([appUrl]);
     expect(unexpected).toEqual([]);
   });
+});
+
+
+test('effective counters and scheduled, open and completed manual audit stages work without networking', async ({ page, context }) => {
+  const unexpected = observeRequests(page);
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await supplyOfflineDocument(context);
+  await page.goto(appUrl);
+  await disableNetworking(context);
+  await exerciseCountersAndManualStages(page, async () => disableNetworking(context));
+  expect(await page.evaluate(() => navigator.onLine)).toBe(false);
+  expect(unexpected).toEqual([]);
+  expect(errors).toEqual([]);
 });

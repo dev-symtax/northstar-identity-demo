@@ -1,5 +1,5 @@
 import { decisions, applicationById, entitlementById, identities } from '../data/catalog.js';
-import { REVIEWER, SCENARIO } from '../data/scenario.js';
+import { LEGACY_TASK, REVIEWER, SCENARIO } from '../data/scenario.js';
 
 export const STORAGE_KEY = 'northstar-identity-demo-v1';
 const STATE_VERSION = 3;
@@ -42,9 +42,19 @@ function decisionRecord(row, model, sequence, at = model.decidedAt || SCENARIO.r
 function executionRecord(row, status, at, extra = {}) {
   return { id: `FE-${row.id}-${status}`, rowId: row.id, eventId: EVENT_ID, status, timestamp: at, ...extra };
 }
-function executionTimestamp(state) {
-  // Editing access decisions does not advance the effective-date execution past its task SLA.
-  return new Date(Date.parse(SCENARIO.fulfillmentAt) + Math.min(state.actionCount, 239) * 60000).toISOString();
+function manualObligation() {
+  return { method: LEGACY_TASK.method, owner: LEGACY_TASK.owner, task: LEGACY_TASK.id,
+    application: LEGACY_TASK.application, target: LEGACY_TASK.resource,
+    due: SCENARIO.legacyDue, dueAt: SCENARIO.legacyDueAt, status: 'Scheduled' };
+}
+function manualTaskRecord(rows, stage, timestamp, extra = {}) {
+  return {
+    id: `MF-${LEGACY_TASK.id}-${stage}`, eventId: EVENT_ID, category: 'Controlled task', eventType: 'Manual fulfillment', stage,
+    actor: LEGACY_TASK.owner, owner: LEGACY_TASK.owner, method: LEGACY_TASK.method,
+    applicationId: LEGACY_TASK.applicationId, application: LEGACY_TASK.application, target: LEGACY_TASK.resource,
+    entitlement: 'legacy-write', resource: LEGACY_TASK.resource, task: LEGACY_TASK.id,
+    due: SCENARIO.legacyDue, dueAt: SCENARIO.legacyDueAt, timestamp, rowIds: rows.map(row => row.id), ...extra,
+  };
 }
 function recordLifecycleCompletion(state, timestamp) {
   if (!controlComplete(state) || state.lifecycleEvidence.length) return state;
@@ -89,22 +99,26 @@ export function canApplyDecisions(state) {
   const action = id => getAccessDecision(decisions.find(row => row.id === id), state).decidedAction;
   return action('h-payment') !== 'GRANT' || action('h-ar') === 'REMOVE';
 }
-export function decisionSummary(state) {
+export function decisionSummary(state, { scope, includeUndecided = false } = {}) {
   const byAction = Object.fromEntries(ACTIONS.map(action => [action, 0]));
+  const decidedByAction = { ...byAction };
   const applications = new Map();
+  const rows = decisions.filter(row => !scope || (scope === 'human' ? row.scope === 'human' : row.scope !== 'human'));
   let decided = 0;
-  for (const row of decisions) {
-    const action = getAccessDecision(row, state).decidedAction;
+  for (const row of rows) {
+    const chosen = getAccessDecision(row, state).decidedAction;
+    if (chosen) { decided += 1; decidedByAction[chosen] += 1; }
+    const action = chosen || (includeUndecided ? effectiveDecision(row, state) : null);
     if (!action) continue;
-    decided += 1;
     byAction[action] += 1;
-    const application = row.entitlement ? applicationById[entitlementById[row.entitlement].app].name : 'Finance Operations Agent';
-    const group = applications.get(application) || { application, name: application, count: 0, counts: {} };
+    const appId = row.entitlement ? entitlementById[row.entitlement].app : null;
+    const application = appId ? applicationById[appId].name : 'Finance Operations Agent';
+    const group = applications.get(application) || { application, name: application, appId, count: 0, counts: {} };
     group.count += 1;
     group.counts[action] = (group.counts[action] || 0) + 1;
     applications.set(application, group);
   }
-  return { byAction, byApplication: [...applications.values()], total: decisions.length, decided };
+  return { byAction, decidedByAction, byApplication: [...applications.values()], total: rows.length, decided };
 }
 function reduceState(state, action) {
   if (!action || typeof action.type !== 'string') return state;
@@ -164,7 +178,10 @@ function reduceState(state, action) {
     });
   }
   if (action.type === 'APPLY_DECISIONS') {
-    return canApplyDecisions(state) ? { ...state, applied: true, actionCount: state.actionCount + 1 } : state;
+    if (!canApplyDecisions(state)) return state;
+    const obligations = decisions.filter(row => row.entitlement === 'legacy-write' && effectiveDecision(row, state) === 'REMOVE')
+      .map(row => decisionRecord(row, { ...getAccessDecision(row, state), manualFulfillment: manualObligation() }, `${state.actionCount + 1}-scheduled`));
+    return { ...state, applied: true, decisionEvidence: [...state.decisionEvidence, ...obligations], actionCount: state.actionCount + 1 };
   }
   if (action.type === 'RUN_FULFILLMENT') {
     if (!state.applied || state.fulfillmentStarted) return state;
@@ -182,7 +199,7 @@ function reduceState(state, action) {
       } else if (action === 'DO_NOT_GRANT') {
         status = 'Not granted'; detail = { method: 'Grant withheld by access decision', owner: 'Identity Operations', sla: 'Not applicable', reference: `DECISION-0842-${row.id.toUpperCase()}` };
       } else if (row.entitlement === 'legacy-write' && action === 'REMOVE') {
-        status = 'Task open'; detail = { method: 'Manual access removal', owner: 'Martin Keller · Finance Platforms', sla: SCENARIO.legacyDue, reference: 'SN-TASK-004812' };
+        status = 'Task open'; detail = { method: LEGACY_TASK.method, owner: 'Martin Keller · Finance Platforms', sla: SCENARIO.legacyDue, reference: LEGACY_TASK.id };
       } else {
         // A conflicting operational permission must be removed before payment approval is activated.
         if (row.id === 'h-payment' && action === 'GRANT' && tasks['h-ar']?.status !== 'Removed') return;
@@ -193,8 +210,12 @@ function reduceState(state, action) {
       evidence.push(executionRecord(row, status, at, detail));
     });
     const manualRows = decisions.filter(row => tasks[row.id]?.status === 'Task open');
-    const legacyTask = manualRows.length ? { id: 'SN-TASK-004812', status: 'Task open', owner: 'Martin Keller', due: SCENARIO.legacyDue, rowIds: manualRows.map(row => row.id) } : null;
-    return recordLifecycleCompletion({ ...state, fulfillmentStarted: true, tasks, legacyTask, fulfillmentEvidence: evidence, actionCount: state.actionCount + 1 }, evidence.at(-1).timestamp);
+    const legacyTask = manualRows.length ? { id: LEGACY_TASK.id, status: 'Task open', owner: LEGACY_TASK.owner, due: SCENARIO.legacyDue, rowIds: manualRows.map(row => row.id) } : null;
+    const initiation = manualRows.length ? [manualTaskRecord(manualRows, 'initiated', SCENARIO.fulfillmentAt, {
+      action: 'Manual fulfillment initiated', result: 'Open', reference: LEGACY_TASK.id,
+    })] : [];
+    return recordLifecycleCompletion({ ...state, fulfillmentStarted: true, tasks, legacyTask, fulfillmentEvidence: evidence,
+      manualFulfillmentEvidence: [...state.manualFulfillmentEvidence, ...initiation], actionCount: state.actionCount + 1 }, evidence.at(-1).timestamp);
   }
   if (action.type === 'COMPLETE_LEGACY') {
     const rows = legacyTaskRows(state);
@@ -203,19 +224,20 @@ function reduceState(state, action) {
     const tasks = { ...state.tasks };
     const records = rows.map(row => {
       tasks[row.id] = { status: 'Removed' };
-      return executionRecord(row, 'Removed', executionTimestamp(state), {
+      return executionRecord(row, 'Removed', SCENARIO.legacyCompletedAt, {
         method: 'DBA access revocation and verification', owner: 'Martin Keller · Finance Platforms',
         sla: SCENARIO.legacyDue, reference: action.reference.trim(), note: action.note.trim(), task: 'SN-TASK-004812',
       });
     });
     const legacyTask = { ...state.legacyTask, status: 'Completed', completedAt: records.at(-1).timestamp, reference: action.reference.trim(), note: action.note.trim() };
-    const completionRecord = {
-      id: 'MF-SN-TASK-004812-completed', eventId: EVENT_ID, category: 'Controlled task',
-      actor: 'Martin Keller', action: 'Completed manual access removal',
-      applicationId: 'legacy', target: 'Legacy Finance DB', entitlement: 'legacy-write', resource: 'Legacy Finance DB Write',
-      task: 'SN-TASK-004812', result: 'Completed', timestamp: legacyTask.completedAt,
-      reference: legacyTask.reference, note: legacyTask.note, rowIds: rows.map(row => row.id),
-    };
+    const references = legacyTask.reference.split(/\s*\/\s*/);
+    const completionRecord = manualTaskRecord(rows, 'completed', legacyTask.completedAt, {
+      action: 'Completed manual access removal', completedBy: LEGACY_TASK.owner, verifiedBy: REVIEWER.name,
+      summary: `Completed by ${LEGACY_TASK.owner}, verified by ${REVIEWER.name}`,
+      result: 'Completed within SLA', changeReference: references.find(value => /^CHG-/.test(value)) || null,
+      verificationReference: references.find(value => /^DBA-VERIFY-/.test(value)) || null,
+      reference: legacyTask.reference, note: legacyTask.note,
+    });
     return recordLifecycleCompletion({ ...state, tasks, legacyTask, actionCount: state.actionCount + 1,
       fulfillmentEvidence: [...state.fulfillmentEvidence, ...records],
       manualFulfillmentEvidence: [...state.manualFulfillmentEvidence, completionRecord],

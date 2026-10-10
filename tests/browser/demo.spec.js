@@ -51,7 +51,7 @@ test('full approval and provisioning path preserves audit history, persistence a
   for (const id of ['h-legacy', 'a-legacy']) {
     await expect(accessRow(page, id)).toContainText('Removed');
     await expect(accessRow(page, id)).toContainText(COMPLETION_REFERENCE);
-    await expect(accessRow(page, id)).toContainText('Monday 19 October · 12:00 UTC');
+    await expect(accessRow(page, id)).toContainText('19 October 2026 · 12:00 UTC');
   }
   const bundle = await downloadAudit(page);
   expect(bundle.effectiveDate).toBe('2026-10-19');
@@ -140,7 +140,7 @@ test('Budget Approval override requires a comment and is reflected in provisioni
   await expect(accessRow(page, 'h-budget')).toHaveCount(0);
   await expect(page.locator('.provisioning-connected')).toContainText('6 of 6 changes provisioned');
   await nav(page, 'Audit trail');
-  await page.getByRole('button', { name: 'All (16)', exact: true }).click();
+  await page.getByRole('button', { name: 'All (17)', exact: true }).click();
   await expect(accessRow(page, 'h-budget')).toContainText('Changed');
   await expect(accessRow(page, 'h-budget')).toContainText('Do not grant');
   await expect(accessRow(page, 'h-budget')).toContainText(EDIT_COMMENT);

@@ -50,15 +50,21 @@ test('withheld grants, policy locks and manual access stay out of connected rows
   assert.deepEqual(connectedChangeSummary(usageRemoved), { total: 8, completed: 8 });
 });
 
-test('manual completion records one task-level actor/action/result without replacing either governance or access-removal evidence', () => {
+test('manual initiation and completion record separate task-level actor/action/results without replacing either governance or access-removal evidence', () => {
   const open = run(apply());
   const completed = complete(open);
-  assert.deepEqual(open.manualFulfillmentEvidence, []);
-  assert.equal(completed.manualFulfillmentEvidence.length, 1);
-  assert.deepEqual(completed.manualFulfillmentEvidence[0], {
-    id: 'MF-SN-TASK-004812-completed', eventId: 'WD-MOV-2026-0842', category: 'Controlled task',
-    actor: 'Martin Keller', action: 'Completed manual access removal', applicationId: 'legacy', target: 'Legacy Finance DB',
-    entitlement: 'legacy-write', resource: 'Legacy Finance DB Write', task: 'SN-TASK-004812', result: 'Completed',
+  assert.equal(open.manualFulfillmentEvidence.length, 1);
+  assert.equal(open.manualFulfillmentEvidence[0].result, 'Open');
+  assert.equal(open.manualFulfillmentEvidence[0].timestamp, SCENARIO.fulfillmentAt);
+  assert.deepEqual(completed.manualFulfillmentEvidence[0], open.manualFulfillmentEvidence[0]);
+  assert.equal(completed.manualFulfillmentEvidence.length, 2);
+  assert.deepEqual(completed.manualFulfillmentEvidence[1], {
+    id: 'MF-SN-TASK-004812-completed', eventId: 'WD-MOV-2026-0842', category: 'Controlled task', eventType: 'Manual fulfillment', stage: 'completed',
+    owner: 'Martin Keller', method: 'Controlled manual task', due: SCENARIO.legacyDue, dueAt: SCENARIO.legacyDueAt,
+    completedBy: 'Martin Keller', verifiedBy: 'Patrick Sena', summary: 'Completed by Martin Keller, verified by Patrick Sena',
+    changeReference: null, verificationReference: 'DBA-VERIFY-0842',
+    actor: 'Martin Keller', action: 'Completed manual access removal', applicationId: 'legacy', application: 'Legacy Finance DB', target: 'Legacy Finance DB Write',
+    entitlement: 'legacy-write', resource: 'Legacy Finance DB Write', task: 'SN-TASK-004812', result: 'Completed within SLA',
     timestamp: completed.legacyTask.completedAt, reference: 'DBA-VERIFY-0842', note: 'Selected write access revoked and verified.',
     rowIds: ['h-legacy', 'a-legacy'],
   });
@@ -82,29 +88,29 @@ test('audit All and Manual tasks include the dedicated completion record exactly
   const open = run(apply());
   const completed = complete(open);
   for (const type of ['decision', 'provisioning']) {
-    assert.equal(auditRecords(open, type).length, 16);
+    assert.equal(auditRecords(open, type).length, 17);
     const records = auditRecords(completed, type);
-    assert.equal(records.length, 17);
-    assert.equal(records.filter(isManualFulfillment).length, 1);
-    assert.equal(filterAuditRecords(records, completed, type, 'all').length, 17);
+    assert.equal(records.length, 18);
+    assert.equal(records.filter(isManualFulfillment).length, 2);
+    assert.equal(filterAuditRecords(records, completed, type, 'all').length, 18);
     assert.equal(filterAuditRecords(records, completed, type, 'key').length, 5);
     assert.equal(filterAuditRecords(records, completed, type, 'locked').length, 1);
     assert.equal(filterAuditRecords(records, completed, type, 'overrides').length, 0);
     const manual = filterAuditRecords(records, completed, type, 'manual');
-    assert.equal(manual.length, 3);
-    assert.equal(manual.filter(isManualFulfillment).length, 1);
+    assert.equal(manual.length, 4);
+    assert.equal(manual.filter(isManualFulfillment).length, 2);
     const full = auditRecords(completed, type, true);
-    assert.equal(full.length, (type === 'decision' ? completed.decisionEvidence : completed.fulfillmentEvidence).length + 1);
-    assert.equal(full.filter(isManualFulfillment).length, 1);
+    assert.equal(full.length, (type === 'decision' ? completed.decisionEvidence : completed.fulfillmentEvidence).length + 2);
+    assert.equal(full.filter(isManualFulfillment).length, 2);
   }
 });
 
 test('manual evidence reflects the selected removal scope and is absent when no controlled task is required', () => {
   for (const keptId of ['h-legacy', 'a-legacy']) {
     const completed = complete(run(apply(decide(evaluate(), keptId, 'KEEP'))));
-    assert.equal(completed.manualFulfillmentEvidence.length, 1);
+    assert.equal(completed.manualFulfillmentEvidence.length, 2);
     assert.deepEqual(completed.manualFulfillmentEvidence[0].rowIds, [keptId === 'h-legacy' ? 'a-legacy' : 'h-legacy']);
-    assert.equal(filterAuditRecords(auditRecords(completed), completed, 'decision', 'manual').length, 2);
+    assert.equal(filterAuditRecords(auditRecords(completed), completed, 'decision', 'manual').length, 3);
   }
   const noTask = run(apply(decide(decide(evaluate(), 'h-legacy', 'KEEP'), 'a-legacy', 'KEEP')));
   assert.equal(complete(noTask), noTask);
