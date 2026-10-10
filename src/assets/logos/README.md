@@ -1,20 +1,18 @@
-# Official application logo registry
+# Local application logos
 
-`src/data/assets.js` maps application IDs to local assets. Connector records carry the same application ID, so all screens use one registry. The supplied `connector_logo_official_sources.zip` contains source links only, with no image binaries. All eight official logo slots therefore retain their neutral fallback. No brand marks were recreated.
+`src/data/assets.js` is the central registry. Connector records use the same application IDs, so every screen and drawer shares these assets.
 
-The missing official SVG files (official transparent PNG equivalents are also accepted) are:
-
-| Application ID | Required file | Mark |
+| Application ID | Application | Supplied filename |
 | --- | --- | --- |
-| sap | sap-s4hana.svg | Official SAP S/4HANA mark, or an approved SAP primary logo with the nearby S/4HANA application label |
-| powerbi | microsoft-power-bi.svg | Official Power BI product icon |
-| workday | workday.svg | Official Workday primary logo |
-| entra | microsoft-entra-id.svg | Official Microsoft Entra ID product icon |
-| ad | active-directory.svg | Official on-premises Active Directory / AD DS icon; do not substitute Entra ID |
-| snow | servicenow.svg | Official ServiceNow logo |
-| salesforce | salesforce.svg | Official Salesforce cloud logo |
-| m365 | microsoft-365.svg | Official Microsoft 365 product icon |
+| `sap` | SAP S/4HANA | `SAP_2011_logo.svg` |
+| `powerbi` | Microsoft Power BI | `New_Power_BI_Logo.svg` |
+| `workday` | Workday | `Workday_logo.svg` |
+| `ad` | Active Directory | `active-directory.svg` |
+| `snow` | ServiceNow | `ServiceNow_logo.svg` |
+| `salesforce` | Salesforce | `Salesforce.com_logo.svg` |
+| `m365` | Microsoft 365 | `Microsoft_365_logo.svg` |
+| `entra` | Microsoft Entra ID | `Microsoft_Entra_ID_color_icon.svg` |
 
-Store official supplied assets here, import them in the registry, and assign their import to `asset`. Vite bundles them locally and the standalone build embeds them. Never assign remote URLs or imitate brand marks. Official images render at 22px on the existing white tile.
+The supplied SVG files are stored byte-for-byte unchanged: no recoloring, cropping, redrawing or reinterpretation. They render with `object-fit: contain` at 22×22px in the existing 28×28px white tile. Vite bundles them locally; the standalone build embeds them as data URIs. No remote URLs or brand approximations are used.
 
-Finance Hub keeps the generic finance icon. Legacy Finance DB keeps the database icon and Manual label. Warehouse Operations and Legal Document Vault also use category fallbacks.
+All eight supplied application logos use this registry. Finance Hub keeps its generic finance icon. Legacy Finance DB keeps its database icon and Manual badge. Other applications without supplied logos retain their category icons.

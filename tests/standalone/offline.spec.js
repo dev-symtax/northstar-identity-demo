@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
+import { assertLogoConsistency, verifyLogoCatalog } from '../helpers/application-logos.js';
 import {
   EDIT_COMMENT, REVIEW_COMMENT, COMPLETION_REFERENCE, accessRow, applyDecisions,
   assertKeyAuditRecords, assertProductLanguage, changeRow, confirmCompletion,
@@ -92,24 +93,29 @@ test('single HTML embeds scripts, styles, assets and exact local fonts and licen
   expect(unexpected).toEqual([]);
 });
 
-test('offline navigation, drawers, profile portraits and all application fallback tiles load without requests', async ({ page, context }) => {
+test('offline navigation, drawers, profile portraits and application logos load without requests', async ({ page, context }) => {
   const unexpected = observeRequests(page);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await supplyOfflineDocument(context);
   await page.goto(appUrl);
   await disableNetworking(context);
+  await nav(page, 'Applications');
+  const logoSources = await verifyLogoCatalog(page, { offline: true });
   for (const name of ['My tasks', 'Lifecycle events', 'Access requests', 'Access certifications', 'Policies', 'Roles', 'AI agents', 'Applications', 'Connectors', 'Workday source', 'Audit trail', 'Reports']) {
     await nav(page, name);
     const rows = page.locator('.workspace-records tbody tr');
     expect(await rows.count()).toBeGreaterThan(0);
+    await assertLogoConsistency(page, logoSources, { offline: true });
     await rows.nth(name === 'Lifecycle events' ? 1 : 0).getByRole('button').first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
+    await assertLogoConsistency(page, logoSources, { offline: true });
     await assertProductLanguage(page);
     await page.keyboard.press('Escape');
   }
   await nav(page, 'Applications');
-  await expect(page.locator('[data-asset-kind="category"]')).toHaveCount(12);
+  await expect(page.locator('[data-asset-kind="official"]')).toHaveCount(8);
+  await expect(page.locator('[data-asset-kind="category"]')).toHaveCount(4);
   for (const location of ['header', 'sidebar']) {
     await page.getByRole('button', { name: `Open Patrick Sena profile · ${location}`, exact: true }).click();
     const profile = page.getByRole('dialog', { name: 'Patrick Sena profile' });
@@ -144,6 +150,12 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await applyDecisions(page);
   await provision(page);
   await expectFullyInViewport(page, page.locator('.legacy-panel'));
+  await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'View audit trail', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveClass(/primary/);
+  await expect(page.getByRole('button', { name: 'Export audit trail', exact: true })).toHaveClass(/secondary/);
+  await expect(page.locator('.audit-actions .button')).toHaveText(['Return to lifecycle events', 'Export audit trail']);
+  await expect(page.locator('.notice')).toContainText('1 manual task open.');
   await page.getByRole('button', { name: 'Return to lifecycle events', exact: true }).click();
   const mover = page.locator('[data-record-id="WD-MOV-2026-0842"]');
   await expect(mover).toContainText('Manual task open');
@@ -175,6 +187,7 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await page.reload();
   await disableNetworking(context);
   await nav(page, 'Audit trail');
+  await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Provisioning', exact: true }).click();
   await expect(accessRow(page, 'h-legacy')).toContainText(COMPLETION_REFERENCE);
   const stored = await page.evaluate(() => Object.entries(localStorage));

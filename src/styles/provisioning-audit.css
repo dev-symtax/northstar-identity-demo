@@ -1,6 +1,8 @@
 .provisioning-connected .section-title > .text-link { margin-left: auto; }
 .manual-not-required { padding: 22px 24px; border-top: 1px solid var(--line); font-size: 12px; }
 .audit-panel table { table-layout: auto; }
+.audit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.page-title:has(.audit-actions) .title-action { max-width: 100%; }
 .audit-panel th, .audit-panel td { vertical-align: top; }
 .audit-panel .timestamp-cell { min-width: 140px; }
 .audit-comment-cell { min-width: 130px; max-width: 220px; overflow-wrap: anywhere; }

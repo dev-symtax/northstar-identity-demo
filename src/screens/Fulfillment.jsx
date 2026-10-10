@@ -66,7 +66,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   }
 
   return <>
-    <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description={`Applied access decisions are scheduled for ${SCENARIO.effectiveDate}.`} action={state.fulfillmentStarted ? <Button variant="secondary" icon={ArrowRight} onClick={() => navigate(openLegacy.length ? 1 : 4)}>{openLegacy.length ? 'Return to lifecycle events' : 'View audit trail'}</Button> : <Button icon={Play} onClick={provision}>Provision changes</Button>} />
+    <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description={`Applied access decisions are scheduled for ${SCENARIO.effectiveDate}.`} action={state.fulfillmentStarted ? <Button icon={ArrowRight} onClick={() => navigate(4)}>View audit trail</Button> : <Button icon={Play} onClick={provision}>Provision changes</Button>} />
     <p className="provisioning-run-date">Run date: Monday, 19 Oct 2026 · 08:00 UTC</p>
     <ol className="provisioning-status" aria-label="Provisioning status">{['Scheduled', 'Provisioned', hasManualTask ? 'Manual task open' : 'No manual task', 'Completed'].map((label, index) => { const current = !state.fulfillmentStarted ? 0 : openLegacy.length ? 2 : 3; return <li key={label} className={index === current ? 'current' : index < current ? 'done' : ''}><span>{index < current ? <Check size={16} /> : index + 1}</span>{label}</li>; })}</ol>
     {completionToast && <div className="recorded-toast" role="status">Completion recorded for SN-TASK-004812.</div>}

@@ -35,7 +35,7 @@ function decisionDetails(record, row, state) {
 }
 const completionReference = record => record.status === 'Task open' ? 'Pending completion' : record.status === 'Not granted' ? 'No grant executed' : record.reference || '—';
 
-export default function Evidence({ state, navigate }) {
+export default function Evidence({ state, navigate, workflow = false }) {
   const [tab, setTab] = useState('decision');
   const [history, setHistory] = useState(false);
   const [filter, setFilter] = useState('all');
@@ -50,6 +50,7 @@ export default function Evidence({ state, navigate }) {
   const allRecords = tab === 'decision' ? decisionRows : provisioningRows;
   const records = allRecords.filter(record => filter === 'key' ? keyIds.includes(record.rowId) : filter === 'overrides' ? (tab === 'decision' ? record.status === 'Changed' : getAccessDecision(byId[record.rowId], state).status === 'Changed') : filter === 'locked' ? record.rowId === 'a-payment' : filter === 'manual' ? ['h-legacy', 'a-legacy'].includes(record.rowId) && getAccessDecision(byId[record.rowId], state).decidedAction === 'REMOVE' : true).sort((a, b) => filter === 'key' ? keyIds.indexOf(a.rowId) - keyIds.indexOf(b.rowId) : 0);
   const openManual = legacyTaskRows(state).length > 0;
+  const awaitingEvaluation = tab === 'decision' && !state.evaluated;
   function exportAuditTrail() {
     const enrich = record => ({ ...record, identity: subjectName(byId[record.rowId]), access: resourceName(byId[record.rowId]), scope: byId[record.rowId].scope === 'human' ? 'User' : byId[record.rowId].scope === 'inbound' ? 'Agent usage' : 'Agent permissions', ...(record.rowId === 'h-payment' ? { additionalPolicy: 'POL-SOD-017' } : {}) });
     const accessDecisions = decisions.map(row => ({ rowId: row.id, identity: subjectName(row), access: resourceName(row), ...getAccessDecision(row, state) }));
@@ -57,11 +58,11 @@ export default function Evidence({ state, navigate }) {
     const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }));
     const link = document.createElement('a'); link.href = url; link.download = 'northstar-sarah-miller-audit-trail.json'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  if (!state.evaluated) return <WorkspacePage page="audit" state={state} navigate={navigate} />;
+  if (!state.evaluated && !workflow) return <WorkspacePage page="audit" state={state} navigate={navigate} />;
   const detailRow = detail && byId[detail.record.rowId];
   const detailDecision = detail?.type === 'decision' && decisionDetails(detail.record, detailRow, state);
   return <>
-    <PageTitle eyebrow="AUDIT · WD-MOV-2026-0842" title="Audit trail" description={`Access decisions and provisioning records for Sarah Miller’s role change effective ${SCENARIO.effectiveDate}.`} action={<Button icon={Download} onClick={exportAuditTrail}>Export audit trail</Button>} />
+    <PageTitle eyebrow="AUDIT · WD-MOV-2026-0842" title="Audit trail" description={`Access decisions and provisioning records for Sarah Miller’s role change effective ${SCENARIO.effectiveDate}.`} action={<div className="audit-actions">{workflow && <Button icon={ArrowRight} onClick={() => navigate(1)}>Return to lifecycle events</Button>}<Button variant="secondary" icon={Download} onClick={exportAuditTrail}>Export audit trail</Button></div>} />
     <div className="evidence-intro-grid">
       <section className={`evidence-definition ${tab === 'decision' ? 'selected' : ''}`}><span className="definition-icon"><Fingerprint size={24} strokeWidth={1.5} /></span><div><span className="eyebrow">ACCESS DECISIONS</span><h2>Recommendations and decisions</h2><p>Identity · Access · Action · Reviewer · Policy</p><small>Includes accepted recommendations, overrides and policy-locked access.</small></div></section>
       <section className={`evidence-definition ${tab === 'provisioning' ? 'selected' : ''}`}><span className="definition-icon"><ClipboardCheck size={24} strokeWidth={1.5} /></span><div><span className="eyebrow">PROVISIONING ACTIVITY</span><h2>Execution and completion</h2><p>Method · Status · Owner · SLA · Reference</p><small>Includes automated results and manual task completion.</small></div></section>
@@ -89,7 +90,7 @@ export default function Evidence({ state, navigate }) {
             <td><Actor name={entry.decidedAction || locked ? entry.decidedBy || 'Policy engine' : '—'} /></td><td className="policy-id"><button className="table-link policy-link" aria-label={`View policy ${entry.policyId}`} onClick={() => setPolicyDetail({ policyId: entry.policyId, row, decision: entry })}>{entry.policyId}</button>{row.id === 'h-payment' && <button className="table-link policy-link cell-subtitle" aria-label="View policy POL-SOD-017" onClick={() => setPolicyDetail({ policyId: 'POL-SOD-017', row, decision: entry })}>POL-SOD-017</button>}</td><td className="timestamp-cell">{formatTime(entry.decidedAt || record.timestamp)}</td><td className="audit-comment-cell">{entry.comment || '—'}</td>
           </> : <><td>{record.method}</td><td><Badge>{record.status}</Badge></td><td>{record.owner}</td><td>{record.sla}</td><td className="reference-cell">{completionReference(record)}</td></>}
         </tr>;
-      })}</tbody></table> : <div className="table-empty evidence-empty"><ClipboardCheck size={25} /><h3>{allRecords.length ? 'No records match this filter' : 'No provisioning records'}</h3><p>Provisioning activity is recorded after the applied decisions are executed.</p><Button variant="secondary" icon={ArrowRight} onClick={() => navigate(3)}>Open provisioning</Button></div>}
+      })}</tbody></table> : <div className="table-empty evidence-empty"><ClipboardCheck size={25} /><h3>{allRecords.length ? 'No records match this filter' : awaitingEvaluation ? 'No access decisions' : 'No provisioning records'}</h3><p>{awaitingEvaluation ? 'Review access recommendations to record decisions for this lifecycle event.' : 'Provisioning activity is recorded after the applied decisions are executed.'}</p><Button variant="secondary" icon={ArrowRight} onClick={() => navigate(awaitingEvaluation ? 2 : 3)}>{awaitingEvaluation ? 'Review access recommendations' : 'Open provisioning'}</Button></div>}
       <div className="table-footer"><span>Event WD-MOV-2026-0842 · Workday</span><span>UTC timestamps</span></div>
     </section>
     {history && state.lifecycleEvidence.length > 0 && <section className="panel lifecycle-history"><SectionTitle title="Lifecycle history" description="Completion of the applied event and its operational tasks." /><table aria-label="Lifecycle history"><thead><tr><th>Event / identity</th><th>Status</th><th>Reason</th><th>Recorded by</th><th>Timestamp</th><th>Linked task</th></tr></thead><tbody>{state.lifecycleEvidence.map(record => <tr key={record.id}><td>{record.eventId}<small className="cell-subtitle">{record.identity}</small></td><td><Badge>{record.status}</Badge></td><td>{record.reason}</td><td>{record.actor}</td><td>{formatTime(record.timestamp)}</td><td>{record.task || '—'}</td></tr>)}</tbody></table></section>}

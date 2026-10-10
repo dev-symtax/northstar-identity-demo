@@ -1,3 +1,12 @@
+import sapLogo from '../assets/logos/SAP_2011_logo.svg';
+import serviceNowLogo from '../assets/logos/ServiceNow_logo.svg';
+import workdayLogo from '../assets/logos/Workday_logo.svg';
+import powerBiLogo from '../assets/logos/New_Power_BI_Logo.svg';
+import activeDirectoryLogo from '../assets/logos/active-directory.svg';
+import salesforceLogo from '../assets/logos/Salesforce.com_logo.svg';
+import microsoft365Logo from '../assets/logos/Microsoft_365_logo.svg';
+import entraLogo from '../assets/logos/Microsoft_Entra_ID_color_icon.svg';
+
 import patrickPhoto from '../assets/people/patrick-sena.jpg';
 import sarahPhoto from '../assets/people/sarah-miller.jpg';
 
@@ -114,14 +123,14 @@ export const portraits = {
   'Helen Park': portrait53,
 };
 
-// Replace a null value with an imported, supplied official SVG or PNG asset.
+// Supplied local assets are shared by every application and connector view.
 export const applicationAssets = {
-  sap: { slot: 'sap', asset: null },
-  snow: { slot: 'servicenow', asset: null },
-  workday: { slot: 'workday', asset: null },
-  powerbi: { slot: 'microsoft-power-bi', asset: null },
-  entra: { slot: 'microsoft-entra-id', asset: null },
-  ad: { slot: 'active-directory', asset: null },
-  salesforce: { slot: 'salesforce', asset: null },
-  m365: { slot: 'microsoft-365', asset: null },
+  sap: { slot: 'sap', asset: sapLogo },
+  snow: { slot: 'servicenow', asset: serviceNowLogo },
+  workday: { slot: 'workday', asset: workdayLogo },
+  powerbi: { slot: 'microsoft-power-bi', asset: powerBiLogo },
+  entra: { slot: 'microsoft-entra-id', asset: entraLogo },
+  ad: { slot: 'active-directory', asset: activeDirectoryLogo },
+  salesforce: { slot: 'salesforce', asset: salesforceLogo },
+  m365: { slot: 'microsoft-365', asset: microsoft365Logo },
 };

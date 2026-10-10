@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { accessRow, assertProductLanguage, nav, recommend, decideAll, applyDecisions, provision, expandConnected, changeRow } from '../helpers/iga-flow.js';
+import { assertLogoConsistency, verifyLogoCatalog } from '../helpers/application-logos.js';
 
 test('all sidebar pages are populated, read-only, and their rows open details', async ({ page }) => {
   const errors = [];
@@ -9,14 +10,18 @@ test('all sidebar pages are populated, read-only, and their rows open details', 
   await expect(menu.getByRole('button')).toHaveCount(13);
   await expect(menu.getByRole('button', { name: /Recommendations|Provisioning/ })).toHaveCount(0);
   await expect(page.locator('.attention-card')).toContainText('1 mover event needs your decision');
+  await nav(page, 'Applications');
+  const logoSources = await verifyLogoCatalog(page);
   for (const [name, count] of [['My tasks', 6], ['Lifecycle events', 9], ['Access requests', 7], ['Access certifications', 4], ['Policies', 11], ['Roles', 6], ['AI agents', 4], ['Applications', 12], ['Connectors', 9], ['Workday source', 6], ['Audit trail', 5], ['Reports', 3]]) {
     await nav(page, name);
     const rows = page.locator('.workspace-records tbody tr');
     await expect(rows).toHaveCount(count);
+    await assertLogoConsistency(page, logoSources);
     const row = rows.nth(name === 'Lifecycle events' ? 1 : 0);
     await row.getByRole('button').first().click();
     const drawer = page.getByRole('dialog');
     await expect(drawer).toBeVisible();
+    await assertLogoConsistency(page, logoSources);
     await expect(drawer.locator('input, textarea, select')).toHaveCount(0);
     await assertProductLanguage(page);
     await page.keyboard.press('Escape');
@@ -30,7 +35,8 @@ test('all sidebar pages are populated, read-only, and their rows open details', 
   await expect(page.locator('.attention-row')).toHaveCount(1);
   await nav(page, 'Applications');
   expect(await page.locator('.workspace-records tbody tr td:nth-child(5)').evaluateAll(cells => cells.reduce((sum, cell) => sum + Number(cell.innerText), 0))).toBe(40);
-  await expect(page.locator('[data-asset-kind="category"]')).toHaveCount(12);
+  await expect(page.locator('[data-asset-kind="official"]')).toHaveCount(8);
+  await expect(page.locator('[data-asset-kind="category"]')).toHaveCount(4);
   expect(errors).toEqual([]);
 });
 

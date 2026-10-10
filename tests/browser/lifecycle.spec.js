@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { accessRow, applyDecisions, assertProductLanguage, confirmCompletion, decideAll, downloadAudit, expandConnected, expectFullyInViewport, nav, openSarahEvent, provision } from '../helpers/iga-flow.js';
+import { assertLogoConsistency, verifyLogoCatalog } from '../helpers/application-logos.js';
 
 const sarahRow = page => page.locator('[data-record-id="WD-MOV-2026-0842"]');
 const stepper = page => page.getByLabel('Access lifecycle', { exact: true });
@@ -7,12 +8,17 @@ const stepper = page => page.getByLabel('Access lifecycle', { exact: true });
 test('Sarah workflow has clean source information, ServiceNow decisions, scoped navigation and persistent operational resume', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto('/');
+  await nav(page, 'Applications');
+  const logoSources = await verifyLogoCatalog(page);
+  await nav(page, 'Overview');
+  await assertLogoConsistency(page, logoSources);
   await expect(stepper(page)).toHaveCount(0);
   await expect(page.locator('.access-panel')).toContainText('Employee Self Service');
   await expect(page.locator('.access-panel')).not.toContainText('Finance Request Approver');
   await nav(page, 'Lifecycle events');
   await expect(stepper(page)).toHaveCount(0);
   await openSarahEvent(page);
+  await assertLogoConsistency(page, logoSources);
   await expect(stepper(page)).toBeVisible();
   const source = page.locator('.event-source-label');
   await expect(source).toContainText('Workday mover event');
@@ -29,7 +35,9 @@ test('Sarah workflow has clean source information, ServiceNow decisions, scoped 
   await expect(accessRow(page, 'h-snow-self')).toContainText('Keep');
   await expect(accessRow(page, 'h-snow-approver')).toContainText('Finance Request Approver');
   await expect(accessRow(page, 'h-snow-approver')).toContainText('Grant');
+  await assertLogoConsistency(page, logoSources);
   await decideAll(page);
+  await assertLogoConsistency(page, logoSources);
   await applyDecisions(page);
   await expect(stepper(page)).toBeVisible();
   await provision(page);
@@ -38,6 +46,17 @@ test('Sarah workflow has clean source information, ServiceNow decisions, scoped 
   await expect(accessRow(page, 'h-snow-approver')).toContainText('Granted');
   await page.getByLabel('Show unchanged access').check();
   await expect(accessRow(page, 'h-snow-self')).toContainText('Retained');
+  await assertLogoConsistency(page, logoSources);
+  await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'View audit trail', exact: true })).toHaveClass(/primary/);
+  await page.getByRole('button', { name: 'View audit trail', exact: true }).click();
+  await expect(stepper(page)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveClass(/primary/);
+  await expect(page.getByRole('button', { name: 'Export audit trail', exact: true })).toHaveClass(/secondary/);
+  await expect(page.locator('.audit-actions .button')).toHaveText(['Return to lifecycle events', 'Export audit trail']);
+  await expect(page.locator('.notice')).toContainText('1 manual task open.');
+  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(16);
+  await assertLogoConsistency(page, logoSources);
   await page.getByRole('button', { name: 'Return to lifecycle events', exact: true }).click();
   await expect(stepper(page)).toHaveCount(0);
   await expect(sarahRow(page)).toContainText('Manual task open');
@@ -69,12 +88,19 @@ test('Sarah workflow has clean source information, ServiceNow decisions, scoped 
   expect(bundle.accessDecisions).toHaveLength(16);
   await nav(page, 'Audit trail');
   await expect(stepper(page)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Export audit trail', exact: true })).toHaveClass(/secondary/);
   await page.reload();
   await nav(page, 'Lifecycle events');
   await expect(sarahRow(page)).toContainText('Completed');
   await sarahRow(page).getByRole('button').first().click();
   await expect(page.getByRole('heading', { name: 'Audit trail', exact: true })).toBeVisible();
   await expect(stepper(page)).toBeVisible();
+  await page.getByRole('button', { name: 'Return to lifecycle events', exact: true }).click();
+  await expect(sarahRow(page)).toContainText('Completed');
+  await sarahRow(page).getByRole('button').first().click();
+  await expect(page.getByRole('heading', { name: 'Audit trail', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Confirm completion', exact: true })).toHaveCount(0);
   await page.keyboard.press('Shift+G');
   await expect(page.getByRole('dialog', { name: '10-minute guide', exact: true })).toBeVisible();
   await page.keyboard.press('Shift+R');
@@ -84,6 +110,31 @@ test('Sarah workflow has clean source information, ServiceNow decisions, scoped 
   await expect(page.locator('.access-panel tbody tr')).toHaveCount(5);
   await expect(page.locator('.access-panel')).not.toContainText('Finance Request Approver');
   await assertProductLanguage(page);
+});
+
+test('workflow Audit Trail scopes its actions before evaluation and fits a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
+  await openSarahEvent(page);
+  await page.getByRole('button', { name: 'Step 5: Audit trail', exact: true }).click();
+  await expect(stepper(page)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No access decisions', exact: true })).toBeVisible();
+  for (const [label, variant] of [['Return to lifecycle events', 'primary'], ['Export audit trail', 'secondary']]) {
+    const action = page.getByRole('button', { name: label, exact: true });
+    await expect(action).toHaveClass(new RegExp(variant));
+    expect(await action.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      return rect.left >= 0 && rect.right <= innerWidth;
+    })).toBe(true);
+  }
+  await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
+  await nav(page, 'Audit trail');
+  await expect(stepper(page)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveCount(0);
+  await expect(page.locator('.workspace-records tbody tr')).toHaveCount(5);
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')));
+  expect(stored.evaluated).toBe(false);
 });
 
 test('audit policy drawers show relevant rules and preserve filter, history, records and scroll', async ({ page }) => {
