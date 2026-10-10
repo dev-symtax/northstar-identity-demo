@@ -3,7 +3,7 @@ import { X, ArrowRight, Check, Info, ShieldCheck, ChevronRight } from 'lucide-re
 
 export function Badge({ children, tone, dot = true }) {
   const value = String(children);
-  const inferred = /REMOVE|Removed|BLOCK|Blocked|DENIED|Not granted/.test(value) ? 'red' : /REVIEW|Awaiting|pending|open|Scheduled|Ready to execute|High|Critical|In review/.test(value) ? 'amber' : /GRANT|Granted|APPROVED|Approved|Retained|KEEP|Active|Complete|Ready/.test(value) ? 'green' : 'neutral';
+  const inferred = /Remove|REMOVE|Removed|Not permitted|Denied|Not granted|Do not grant/.test(value) ? 'red' : /Review|REVIEW|Awaiting|pending|open|Scheduled|Needs review|High|Critical/.test(value) ? 'amber' : /Grant|GRANT|Granted|Approved|Retained|Keep|KEEP|Accepted|Active|Complete|Ready/.test(value) ? 'green' : 'neutral';
   return <span className={`badge ${tone || inferred}`}>{dot && <span className="badge-dot" />}{children}</span>;
 }
 export function Button({ children, variant = 'primary', icon: Icon, ...props }) {
@@ -18,14 +18,11 @@ export function SectionTitle({ title, description, children }) {
 export function Avatar({ name, large = false }) {
   return <span className={`avatar ${large ? 'large' : ''}`}>{name.split(' ').map(s => s[0]).slice(0, 2).join('')}</span>;
 }
-export function Empty({ title, children, onAction, action = 'View role change' }) {
+export function Empty({ title, children, onAction, action = 'View lifecycle event' }) {
   return <div className="empty-state"><div className="empty-icon"><ShieldCheck size={30} strokeWidth={1.3} /></div><h2>{title}</h2><p>{children}</p>{onAction && <Button icon={ArrowRight} onClick={onAction}>{action}</Button>}</div>;
 }
 export function Notice({ children, tone = 'blue', icon: Icon = Info }) {
   return <div className={`notice ${tone}`}><Icon size={18} strokeWidth={1.8} /><div>{children}</div></div>;
-}
-export function NextStep({ label, children, onClick }) {
-  return <div className="next-step"><div><span className="eyebrow">NEXT IN THE STORY</span><p>{children}</p></div><Button variant="secondary" icon={ArrowRight} onClick={onClick}>{label}</Button></div>;
 }
 export function Drawer({ title, subtitle, children, onClose }) {
   const ref = useRef(null);

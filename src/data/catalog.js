@@ -79,16 +79,16 @@ export const identities = peopleNames.map((name, index) => {
 });
 Object.assign(identities[0], { role: 'Finance Analyst', manager: 'Rachel Morgan', access: ['sap-view', 'powerbi-fin', 'ar-operator', 'legacy-write'] });
 export const agents = [
-  { id: 'finance-agent', name: 'Finance Operations Agent', owner: 'Rachel Morgan', purpose: 'Finance reporting and operational assistance', departments: ['Finance'], resources: ['powerbi-fin', 'finance-reports', 'ar-operator', 'legacy-write'], autonomy: 'Delegated' },
+  { id: 'finance-agent', name: 'Finance Operations Agent', owner: 'Sarah Miller', purpose: 'Finance reporting and operational assistance', departments: ['Finance'], resources: ['powerbi-fin', 'finance-reports', 'ar-operator', 'legacy-write'], autonomy: 'Controlled' },
   { id: 'hr-agent', name: 'People Services Agent', owner: 'Tim Bennett', purpose: 'Employee policy and HR case assistance', departments: ['HR'], resources: ['wd-profile', 'wd-hr'], autonomy: 'Read only' },
-  { id: 'it-agent', name: 'IT Resolution Agent', owner: 'Andre Laurent', purpose: 'Service desk triage and approved remediation', departments: ['IT'], resources: ['snow-agent', 'entra-support'], autonomy: 'Delegated' },
+  { id: 'it-agent', name: 'IT Resolution Agent', owner: 'Andre Laurent', purpose: 'Service desk triage and approved remediation', departments: ['IT'], resources: ['snow-agent', 'entra-support'], autonomy: 'Controlled' },
   { id: 'sales-agent', name: 'Revenue Insights Agent', owner: 'Victoria Reed', purpose: 'Sales forecasting and account insights', departments: ['Sales'], resources: ['sf-sales', 'powerbi-author'], autonomy: 'Read only' },
 ];
 export const movers = [
-  { id: 'WD-MOV-2026-0842', identity: 'sarah', from: 'Finance Analyst', to: 'Finance Manager', effective: SCENARIO.effectiveDate, status: 'Ready to evaluate' },
+  { id: 'WD-MOV-2026-0842', identity: 'sarah', from: 'Finance Analyst', to: 'Finance Manager', effective: SCENARIO.effectiveDate, status: 'Recommendations ready' },
   { id: 'WD-MOV-2026-0843', identity: 'identity-2', from: 'Service Desk Analyst', to: 'IT Operations Manager', effective: 'Tuesday, 20 October 2026', status: 'In review' },
   { id: 'WD-MOV-2026-0844', identity: 'identity-3', from: 'HR Specialist', to: 'HR Business Partner', effective: 'Wednesday, 21 October 2026', status: 'Scheduled' },
-  { id: 'WD-MOV-2026-0845', identity: 'identity-4', from: 'Account Executive', to: 'Sales Manager', effective: 'Friday, 23 October 2026', status: 'Ready to evaluate' },
+  { id: 'WD-MOV-2026-0845', identity: 'identity-4', from: 'Account Executive', to: 'Sales Manager', effective: 'Friday, 23 October 2026', status: 'Recommendations ready' },
 ];
 for (const mover of movers.slice(1)) identities.find(i => i.id === mover.identity).role = mover.from;
 
@@ -99,8 +99,8 @@ export const policies = [
   { id: 'POL-SOD-021', name: 'Vendor / payment separation', description: 'Vendor maintenance and payment approval require separate duties.', conflict: ['sap-vendor', 'payment-approval'] },
   { id: 'POL-SOD-032', name: 'Inventory / dispatch separation', description: 'Inventory adjustment and dispatch approval require separate duties.', conflict: ['wh-write', 'wh-approve'] },
   { id: 'POL-AI-301', name: 'Approved agent eligibility', description: 'Finance roles may use the approved Finance Operations Agent.' },
-  { id: 'POL-AI-302', name: 'Delegated context boundaries', description: 'Agent permissions must independently fit the delegating employee’s new role.' },
-  { id: 'POL-AI-303', name: 'Human-only payment control', description: 'Autonomous agents cannot approve SAP payments, including on behalf of approved humans.' },
+  { id: 'POL-AI-302', name: 'Agent permission boundaries', description: 'Agent permissions must independently fit the owner’s business role.' },
+  { id: 'POL-AI-303', name: 'Human-only payment control', description: 'Payment approval is restricted to human identities (POL-AI-303).' },
 ];
 
 const rows = [
@@ -112,13 +112,16 @@ const rows = [
   ['h-legacy', 'human', 'legacy-write', 'REMOVE', 'POL-FIN-101', 'Direct database writes are outside the manager’s responsibilities.'],
   ['h-payment', 'human', 'payment-approval', 'REVIEW', 'POL-RISK-204', 'Explicit approval is required; receivables access must be removed before activation.'],
   ['a-inbound', 'inbound', null, 'KEEP', 'POL-AI-301', 'Finance Managers remain eligible to use the approved agent.'],
-  ['a-bi', 'outbound', 'powerbi-fin', 'KEEP', 'POL-AI-302', 'Delegated Finance analysis remains appropriate.'],
-  ['a-reports', 'outbound', 'finance-reports', 'KEEP', 'POL-AI-302', 'Read-only finance reporting remains appropriate in the new delegated context.'],
-  ['a-dashboard', 'outbound', 'finance-dashboard', 'GRANT', 'POL-AI-302', 'Management reporting is allowed in the new delegated context.'],
+  ['a-bi', 'outbound', 'powerbi-fin', 'KEEP', 'POL-AI-302', 'Finance analysis remains appropriate for the agent.'],
+  ['a-reports', 'outbound', 'finance-reports', 'KEEP', 'POL-AI-302', 'Read-only finance reporting remains appropriate for the owner’s new role.'],
+  ['a-dashboard', 'outbound', 'finance-dashboard', 'GRANT', 'POL-AI-302', 'Management reporting is allowed for the owner’s new role.'],
   ['a-ar', 'outbound', 'ar-operator', 'REMOVE', 'POL-AI-302', 'The agent may no longer operate receivables on Sarah’s behalf.'],
-  ['a-legacy', 'outbound', 'legacy-write', 'REMOVE', 'POL-AI-302', 'Delegated legacy writes must be removed alongside direct access.'],
-  ['a-payment', 'outbound', 'payment-approval', 'BLOCK', 'POL-AI-303', 'Payment approval is human-only and is never inherited by the agent.'],
+  ['a-legacy', 'outbound', 'legacy-write', 'REMOVE', 'POL-AI-302', 'Agent legacy writes must be removed alongside the owner’s access.'],
+  ['a-payment', 'outbound', 'payment-approval', 'NOT_PERMITTED', 'POL-AI-303', 'Payment approval is restricted to human identities (POL-AI-303).'],
 ];
-export const decisions = rows.map(([id, scope, entitlement, decision, policy, why]) => ({ id, scope, entitlement, decision, policy, why }));
+export const decisions = rows.map(([id, scope, entitlement, recommendedAction, policyId, reason]) => ({
+  id, scope, entitlement, recommendedAction, policyId, reason,
+  decision: recommendedAction, policy: policyId, why: reason,
+}));
 export function resourceName(row) { return row.entitlement ? entitlementById[row.entitlement].name : 'Finance Operations Agent'; }
 export function subjectName(row) { return row.scope === 'outbound' ? 'Finance Operations Agent on behalf of Sarah Miller' : 'Sarah Miller'; }

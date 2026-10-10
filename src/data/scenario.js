@@ -16,9 +16,3 @@ export const REVIEWER = {
   role: 'Head of Identity Governance',
   initials: 'PS',
 };
-
-export const OUTCOME_STAKEHOLDERS = {
-  security: 'Patrick Sena · Head of Identity Governance',
-  hr: 'Tim Hintermann · Director HR Operations & HRIS',
-  architecture: 'Andre Hostombe · Lead Enterprise Architect',
-};

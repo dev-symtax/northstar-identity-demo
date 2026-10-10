@@ -1,216 +1,263 @@
 import { test, expect } from '@playwright/test';
+import {
+  EDIT_COMMENT, REVIEW_COMMENT, COMPLETION_REFERENCE, accessRow, acceptAll,
+  applyDecisions, assertKeyAuditRecords, assertProductLanguage, changeRow,
+  confirmCompletion, decideAll, decidePayment, downloadAudit, expandConnected,
+  expectFullyInViewport, nav, provision, recommend,
+} from '../helpers/iga-flow.js';
 
-async function nav(page, name) {
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact: true }).click();
-  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact: true })).toHaveAttribute('aria-current', 'page');
-  await expect(page.locator('main').getByRole('heading', { level: 1 })).toBeVisible();
+const storageKey = 'northstar-identity-demo-v1';
+async function storedState(page) {
+  return page.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
 }
-async function evaluate(page) {
-  await nav(page, 'Role change event');
-  await page.getByRole('button', { name: 'Evaluate access', exact: true }).first().click();
-  await expect(page.getByRole('heading', { name: 'Access that fits the new role.' })).toBeVisible();
-  await expect(page.locator('.exception-panel')).toBeInViewport();
-}
-async function review(page, approved = true) {
-  await page.getByRole('button', { name: 'Review exception' }).click();
-  if (!approved) await page.getByLabel('Decision rationale').fill('Payment approval is retained by the Treasury team.');
-  await page.getByRole('button', { name: approved ? 'Approve with sign-off' : 'Deny request' }).click();
-}
-async function execute(page) {
-  await nav(page, 'Fulfillment');
-  await page.getByRole('button', { name: 'Run Monday fulfillment' }).click();
-  await expect(page.locator('.legacy-panel')).toBeInViewport();
-}
-async function completeLegacy(page) {
-  await page.getByRole('button', { name: 'Record completion evidence' }).click();
-  await page.getByRole('button', { name: 'Use sample demo evidence' }).click();
-  await page.getByRole('button', { name: 'Confirm both removals' }).click();
-}
-test('complete customer story: approval, agent guardrail, legacy proof, export, reload and reset', async ({ page }) => {
-  const errors = []; page.on('pageerror', e => errors.push(e.message));
+
+test('full approval and provisioning path preserves audit history, persistence and keyboard reset without errors', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Access starts with context.' })).toBeVisible();
-  await evaluate(page); await review(page);
-  await expect(page.getByRole('status')).toContainText('Approved for Sarah. Her agent remains blocked: payment approval is never inherited.');
-  await expect(page.getByRole('status')).toBeInViewport();
-  await page.getByRole('button', { name: 'View agent decisions' }).click();
-  await expect(page.getByRole('tab', { name: 'AI agent access' })).toHaveAttribute('aria-selected', 'true');
-  const agentPayment = page.locator('tr').filter({ hasText: 'SAP Payment Approval' });
-  await expect(agentPayment).toContainText('BLOCK');
-  await expect(agentPayment).toHaveClass(/agent-block-highlight/);
-  await expect(agentPayment).toBeInViewport();
-  await expect(agentPayment).not.toHaveClass(/agent-block-highlight/);
-  await execute(page);
-  await expect(page.locator('tr').filter({ hasText: 'SAP Payment Approval' })).toContainText('Granted');
-  await nav(page, 'Evidence');
-  await expect(page.locator('.evidence-panel thead')).toBeInViewport();
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(5);
-  await expect(page.getByText('Evidence does not yet prove all controls complete.', { exact: false })).toBeVisible();
-  await page.getByRole('tab', { name: 'Fulfillment evidence' }).click();
-  await expect(page.locator('tr').filter({ hasText: 'Legacy Finance DB Write' }).first()).toContainText('Pending completion');
-  await nav(page, 'Fulfillment'); await completeLegacy(page);
-  await expect(page.getByRole('heading', { name: 'Role access ready. Removal controls complete.' })).toBeVisible();
-  await nav(page, 'Evidence');
-  await expect(page.getByText('Evidence does not yet prove all controls complete.', { exact: false })).toHaveCount(0);
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(5);
-  await expect(page.locator('tr').filter({ hasText: 'SAP Payment Approval' }).filter({ hasText: 'Sarah Miller · human' })).toContainText('APPROVED');
-  await expect(page.locator('tr').filter({ hasText: 'SAP Payment Approval' }).filter({ hasText: 'outbound' })).toContainText('BLOCK');
-  await expect(page.locator('tr').filter({ hasText: 'inbound' })).toContainText('KEEP');
-  expect((await page.locator('.evidence-panel tbody tr').evaluateAll(rows => rows.map(row => row.dataset.rowId))).sort()).toEqual(['a-inbound', 'a-legacy', 'a-payment', 'h-legacy', 'h-payment']);
-  await expect(page.getByRole('button', { name: 'Show all 14 records' })).toHaveAttribute('aria-expanded', 'false');
-  await page.getByRole('button', { name: 'Show all 14 records' }).click();
-  await expect(page.getByRole('button', { name: 'Show 5 key records' })).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(14);
-  await page.getByRole('button', { name: 'Show 5 key records' }).click();
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(5);
-  await page.getByRole('tab', { name: 'Fulfillment evidence' }).click();
-  const legacyRows = page.locator('tr').filter({ hasText: 'Legacy Finance DB Write' });
-  await expect(legacyRows).toHaveCount(2);
-  for (const row of await legacyRows.all()) { await expect(row).toContainText('Removed'); await expect(row).toContainText('CHG-2026-1042'); }
-  await page.getByLabel('Show full history').check();
-  await expect(page.locator('tr').filter({ hasText: 'Legacy Finance DB Write' })).toHaveCount(4);
-  const downloadEvent = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export evidence' }).click();
-  const download = await downloadEvent;
-  const { readFile } = await import('node:fs/promises');
-  const bundle = JSON.parse(await readFile(await download.path(), 'utf8'));
+  await expect(page.getByRole('heading', { name: 'Identity overview', exact: true })).toBeVisible();
+  await assertProductLanguage(page);
+  await recommend(page);
+  await expectFullyInViewport(page, page.locator('.exception-panel'));
+  await decideAll(page);
+  await expect(page.locator('.exception-panel')).toContainText('Approved · activates after Accounts Receivable Operator is removed');
+  await page.getByRole('button', { name: 'View agent permissions', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'AI agent', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(accessRow(page, 'a-payment')).toContainText('Not permitted by policy');
+  await expect(accessRow(page, 'a-payment')).toHaveClass(/agent-block-highlight/);
+  await expectFullyInViewport(page, accessRow(page, 'a-payment'));
+  await expect(accessRow(page, 'a-payment')).not.toHaveClass(/agent-block-highlight/);
+  const unprovisioned = await storedState(page);
+  expect(unprovisioned.tasks).toEqual({});
+  expect(unprovisioned.fulfillmentEvidence).toEqual([]);
+  await applyDecisions(page);
+  await expect(accessRow(page, 'h-payment')).toContainText('Scheduled');
+  await provision(page);
+  await expectFullyInViewport(page, page.locator('.legacy-panel'));
+  await expect(page.locator('main')).toContainText('Role access provisioned. 1 manual task open.');
+  await expandConnected(page);
+  await expect(accessRow(page, 'h-payment')).toContainText('Granted');
+  await confirmCompletion(page);
+  await nav(page, 'Audit trail');
+  await expect(page.getByRole('heading', { name: 'Audit trail', exact: true })).toBeVisible();
+  await assertKeyAuditRecords(page);
+  await expect(accessRow(page, 'h-payment')).toContainText(REVIEW_COMMENT);
+  await page.getByRole('tab', { name: 'Provisioning', exact: true }).click();
+  for (const id of ['h-legacy', 'a-legacy']) {
+    await expect(accessRow(page, id)).toContainText('Removed');
+    await expect(accessRow(page, id)).toContainText(COMPLETION_REFERENCE);
+    await expect(accessRow(page, id)).toContainText('Monday 19 October · 12:00 UTC');
+  }
+  const bundle = await downloadAudit(page);
   expect(bundle.effectiveDate).toBe('2026-10-19');
-  for (const record of bundle.decisionEvidence) expect(record.timestamp).toBe(record.decision === 'APPROVED' ? '2026-10-13T09:01:00.000Z' : '2026-10-13T09:00:00.000Z');
-  expect(bundle.decisionEvidence.find(record => record.decision === 'APPROVED').actor).toBe('Patrick Sena · Head of Identity Governance');
-  for (const record of bundle.fulfillmentEvidence) expect(record.timestamp.slice(0, 10)).toBe('2026-10-19');
-  for (const record of bundle.fulfillmentEvidence.filter(record => ['h-legacy', 'a-legacy'].includes(record.rowId))) expect(record.sla).toBe('Monday 19 October · 12:00 UTC');
-  expect(bundle.syntheticDemo).toBe(true); expect(bundle.outcomes.allControlsResolved).toBe(true);
-  expect(bundle.decisionEvidence).toHaveLength(15); expect(bundle.fulfillmentEvidence.length).toBeGreaterThan(14);
-  expect(bundle.decisionEvidence.some(e => e.decision === 'APPROVED')).toBe(true);
-  expect(bundle.fulfillmentEvidence.some(e => e.scope === 'outbound' && e.resource === 'SAP Payment Approval' && e.status === 'Blocked')).toBe(true);
-  await page.reload(); await nav(page, 'Evidence');
-  await expect(page.getByText('Evidence does not yet prove all controls complete.', { exact: false })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Reset demo' }).click();
-  await page.getByRole('button', { name: 'Reset to start' }).click();
-  await expect(page.getByRole('heading', { name: 'Access starts with context.' })).toBeVisible();
-  await expect(page.locator('.app-footer')).toContainText('Workspace date: Tuesday, 13 Oct 2026');
-  await nav(page, 'Evidence');
-  await expect(page.getByRole('heading', { name: 'No evidence recorded yet' })).toBeVisible();
+  const decisions = bundle.decisionEvidence;
+  const provisioning = bundle.provisioningEvidence || bundle.fulfillmentEvidence;
+  expect(decisions.length).toBeGreaterThanOrEqual(14);
+  for (const record of decisions) {
+    expect(record.eventId).toBe('WD-MOV-2026-0842');
+    expect(record.timestamp).toMatch(/^2026-10-13T09:0[01]:00\.000Z$/);
+  }
+  const humanPayment = decisions.filter(record => record.rowId === 'h-payment').at(-1);
+  expect(humanPayment).toMatchObject({ decidedAction: 'GRANT', decidedBy: 'Patrick Sena · Head of Identity Governance', decidedAt: '2026-10-13T09:01:00.000Z', comment: REVIEW_COMMENT });
+  expect(decisions.filter(record => record.rowId === 'a-payment').at(-1)).toMatchObject({ decidedAction: 'NOT_PERMITTED', status: 'Policy-locked', policyId: 'POL-AI-303' });
+  for (const record of provisioning) expect(record.timestamp.slice(0, 10)).toBe('2026-10-19');
+  const arRemoved = provisioning.find(record => record.rowId === 'h-ar' && record.status === 'Removed');
+  const paymentGranted = provisioning.find(record => record.rowId === 'h-payment' && record.status === 'Granted');
+  expect(Date.parse(arRemoved.timestamp)).toBeLessThan(Date.parse(paymentGranted.timestamp));
+  await page.reload();
+  await nav(page, 'Audit trail');
+  await page.getByRole('tab', { name: 'Provisioning', exact: true }).click();
+  await expect(accessRow(page, 'h-legacy')).toContainText(COMPLETION_REFERENCE);
+  await page.keyboard.press('Shift+R');
+  await expect(page.getByRole('heading', { name: 'Identity overview', exact: true })).toBeVisible();
+  await expect(page.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
+  expect(await storedState(page)).toMatchObject({ evaluated: false, applied: false, review: 'pending', fulfillmentStarted: false, tasks: {}, accessDecisions: {}, decisionEvidence: [], fulfillmentEvidence: [], actions: [] });
+  await nav(page, 'Audit trail');
+  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(0);
+  await assertProductLanguage(page);
   expect(errors).toEqual([]);
 });
-test('denied payment approval does not block core role readiness', async ({ page }) => {
-  await page.goto('/'); await evaluate(page); await review(page, false); await execute(page); await completeLegacy(page);
-  await expect(page.locator('tr').filter({ hasText: 'SAP Payment Approval' })).toContainText('Not granted');
-  await nav(page, 'Evidence');
-  await expect(page.locator('tr').filter({ hasText: 'SAP Payment Approval' }).filter({ hasText: 'Sarah Miller · human' })).toContainText('DENIED');
-  await expect(page.getByText('Evidence does not yet prove all controls complete.', { exact: false })).toHaveCount(0);
-});
-test('pending review survives reload; late approval needs execution and agent stays blocked', async ({ page }) => {
-  await page.goto('/'); await evaluate(page); await execute(page); await completeLegacy(page);
-  await expect(page.getByRole('heading', { name: 'Role access ready. Payment review is outstanding.' })).toBeVisible();
-  await page.reload(); await nav(page, 'Governance decision'); await review(page);
-  await nav(page, 'Fulfillment');
-  await expect(page.locator('tr').filter({ hasText: 'SAP Payment Approval' })).toContainText('Ready to execute');
-  await page.getByRole('button', { name: 'Execute approved permission' }).click();
-  await nav(page, 'Governance decision'); await page.getByRole('tab', { name: 'AI agent access' }).click();
-  await expect(page.locator('tr').filter({ hasText: 'SAP Payment Approval' })).toContainText('BLOCK');
-});
-test('enterprise directory supports search, filters, and detail views', async ({ page }) => {
+
+test('Apply decisions stays disabled until both scopes and the policy violation are resolved', async ({ page }) => {
   await page.goto('/');
-  await page.getByLabel('Search identities').fill('Elena');
-  await expect(page.locator('.directory-table tbody tr')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Elena Rossi', exact: true }).click();
-  await expect(page.getByRole('dialog')).toContainText('HR Specialist');
+  await recommend(page);
+  const apply = page.getByRole('button', { name: 'Apply decisions', exact: true }).first();
+  await expect(apply).toBeDisabled();
+  await expect(accessRow(page, 'h-budget')).toContainText('Recommended');
+  await acceptAll(page, 'human');
+  await expect(accessRow(page, 'h-budget')).toContainText('Accepted');
+  await expect(accessRow(page, 'h-payment')).toContainText('Needs review');
+  await expect(apply).toBeDisabled();
+  await acceptAll(page, 'agent');
+  await expect(accessRow(page, 'a-inbound')).toContainText('Accepted');
+  await expect(accessRow(page, 'a-payment')).toContainText('Policy-locked');
+  await expect(apply).toBeDisabled();
+  await nav(page, 'Provisioning');
+  await expect(page.getByRole('button', { name: 'Provision changes', exact: true })).toHaveCount(0);
+  await nav(page, 'Access recommendations');
+  await decidePayment(page);
+  await expect(apply).toBeEnabled();
+  expect((await storedState(page)).fulfillmentEvidence).toEqual([]);
+  await apply.click();
+  await expect(page.getByRole('dialog', { name: 'Apply access decisions' })).toBeVisible();
+  expect((await storedState(page)).applied).toBe(false);
   await page.keyboard.press('Escape');
-  await page.getByLabel('Search identities').fill('');
-  await page.getByLabel('Filter by department').selectOption('Finance');
-  await expect(page.locator('.directory-table tbody tr')).toHaveCount(8);
-  await page.getByRole('tab', { name: 'Applications' }).click();
-  await page.getByRole('button', { name: 'Legacy Finance DB', exact: true }).click();
-  await expect(page.getByRole('dialog')).toContainText('Controlled task');
-  await expect(page.getByRole('dialog')).toContainText('Legacy Finance DB Write');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect((await storedState(page)).applied).toBe(false);
 });
-test('built demo completes with all external network requests blocked', async ({ page }) => {
-  const external = [];
-  await page.route('**/*', route => {
-    const url = new URL(route.request().url());
-    if (url.hostname !== '127.0.0.1') { external.push(url.href); return route.abort(); }
-    return route.continue();
+
+test('Budget Approval override requires a comment and is reflected in provisioning and the audit trail', async ({ page }) => {
+  await page.goto('/');
+  await recommend(page);
+  await accessRow(page, 'h-budget').getByRole('button', { name: 'Change', exact: true }).click();
+  const editor = page.locator('[data-change-for="h-budget"]');
+  await editor.getByLabel('Decision', { exact: true }).selectOption({ label: 'Do not grant' });
+  await editor.getByRole('button', { name: 'Save change', exact: true }).click();
+  expect(await editor.getByLabel('Comment', { exact: true }).evaluate(input => input.validity.valid)).toBe(false);
+  expect((await storedState(page)).accessDecisions['h-budget'].decidedAction).toBe(null);
+  await editor.getByLabel('Comment', { exact: true }).fill(EDIT_COMMENT);
+  await editor.getByRole('button', { name: 'Save change', exact: true }).click();
+  await expect(accessRow(page, 'h-budget')).toContainText('Changed from Grant to Do not grant');
+  await expect(accessRow(page, 'h-budget')).toContainText(EDIT_COMMENT);
+  await decideAll(page);
+  expect((await storedState(page)).accessDecisions['h-budget']).toMatchObject({ recommendedAction: 'GRANT', decidedAction: 'DO_NOT_GRANT', status: 'Changed', comment: EDIT_COMMENT });
+  await applyDecisions(page);
+  await expect(accessRow(page, 'h-budget')).toContainText('Do not grant');
+  await provision(page);
+  await expandConnected(page);
+  await expect(accessRow(page, 'h-budget')).toContainText('Not granted');
+  await nav(page, 'Audit trail');
+  await page.getByRole('button', { name: 'Show all records (14)', exact: true }).click();
+  await expect(accessRow(page, 'h-budget')).toContainText('Changed');
+  await expect(accessRow(page, 'h-budget')).toContainText('Do not grant');
+  await expect(accessRow(page, 'h-budget')).toContainText(EDIT_COMMENT);
+  const bundle = await downloadAudit(page);
+  expect(bundle.decisionEvidence.filter(record => record.rowId === 'h-budget').at(-1)).toMatchObject({ recommendedAction: 'GRANT', decidedAction: 'DO_NOT_GRANT', status: 'Changed', comment: EDIT_COMMENT });
+  expect((bundle.provisioningEvidence || bundle.fulfillmentEvidence).filter(record => record.rowId === 'h-budget').at(-1).status).toBe('Not granted');
+});
+
+for (const resolution of ['Remove Accounts Receivable Operator', 'Deny Payment Approval']) {
+  test(`SoD edit is blocked until resolved with ${resolution}`, async ({ page }) => {
+    await page.goto('/');
+    await recommend(page);
+    await decideAll(page);
+    const before = (await storedState(page)).accessDecisions['h-ar'];
+    await page.getByRole('tab', { name: 'Human access', exact: true }).click();
+    await changeRow(page, 'h-ar', 'Keep', 'Receivables responsibility is retained for the month-end transition.');
+    await expect(page.getByText('SoD conflict · POL-SOD-017: Accounts Receivable Operator and SAP Payment Approval cannot be held together', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove Accounts Receivable Operator', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Deny Payment Approval', exact: true })).toBeVisible();
+    expect((await storedState(page)).accessDecisions['h-ar']).toEqual(before);
+    await expect(page.getByRole('button', { name: 'Apply decisions', exact: true }).first()).toBeDisabled();
+    await page.getByRole('button', { name: resolution, exact: true }).click();
+    await expect(page.getByText('SoD conflict · POL-SOD-017: Accounts Receivable Operator and SAP Payment Approval cannot be held together', { exact: true })).toHaveCount(0);
+    const after = await storedState(page);
+    expect(after.accessDecisions['h-ar'].decidedAction).toBe(resolution === 'Remove Accounts Receivable Operator' ? 'REMOVE' : 'KEEP');
+    expect(after.accessDecisions['h-payment'].decidedAction).toBe(resolution === 'Remove Accounts Receivable Operator' ? 'GRANT' : 'DO_NOT_GRANT');
+    await applyDecisions(page);
+    await provision(page);
+    await expandConnected(page);
+    await expect(accessRow(page, 'h-ar')).toContainText(resolution === 'Remove Accounts Receivable Operator' ? 'Removed' : 'Retained');
+    await expect(accessRow(page, 'h-payment')).toContainText(resolution === 'Remove Accounts Receivable Operator' ? 'Granted' : 'Not granted');
   });
-  await page.goto('/'); await evaluate(page); await review(page); await execute(page); await completeLegacy(page); await nav(page, 'Evidence');
-  await expect(page.getByRole('heading', { name: 'Explain the decision. Prove the control.' })).toBeVisible();
-  expect(external).toEqual([]);
-});
-test('mobile navigation, keyboard dialog controls, and no page overflow', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/');
-  await page.getByRole('button', { name: 'Open navigation' }).click();
-  await nav(page, 'Role change event');
-  await expect(page.getByRole('heading', { name: 'One business event. A new access context.' })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole('button', { name: 'Reset demo' }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await page.keyboard.press('Shift+Tab');
-  await expect(page.getByRole('button', { name: 'Reset to start' })).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: 'Close details' })).toBeFocused();
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: 'Reset demo' })).toBeFocused();
+}
+
+test('agent payment approval is policy-locked and attempts to change it do not mutate the decision', async ({ page }) => {
+  await page.goto('/');
+  await recommend(page);
+  await page.getByRole('tab', { name: 'AI agent', exact: true }).click();
+  const row = accessRow(page, 'a-payment');
+  await expect(row).toContainText('Policy-locked');
+  await expect(row).toContainText('Not permitted by policy');
+  const before = (await storedState(page)).accessDecisions['a-payment'];
+  await row.getByRole('button', { name: 'Change', exact: true }).click();
+  await expect(page.getByText('Payment approval is restricted to human identities (POL-AI-303). This cannot be overridden.', { exact: true })).toBeVisible();
+  expect((await storedState(page)).accessDecisions['a-payment']).toEqual(before);
+  await expect(page.locator('[data-change-for="a-payment"]')).toHaveCount(0);
+  await assertProductLanguage(page);
 });
 
-test('Decision summary follows its tab, keeps zero counts muted, and preserves the reviewer policy', async ({ page }) => {
-  await page.goto('/'); await evaluate(page);
-  async function expectCounts(values) {
-    const types = ['KEEP', 'GRANT', 'REMOVE', 'REVIEW', 'BLOCK'];
-    const tiles = page.locator('.decision-summary > div');
-    await expect(tiles).toHaveCount(types.length);
-    for (let index = 0; index < types.length; index += 1) {
-      const tile = tiles.nth(index);
-      await expect(tile).toContainText(types[index]);
-      await expect(tile.locator('strong')).toHaveText(String(values[index]));
-      if (values[index] === 0) await expect(tile).toHaveClass(/zero-count/);
-      else await expect(tile).not.toHaveClass(/zero-count/);
-    }
-  }
-  await expectCounts([2, 2, 2, 1, 0]);
-  await page.getByRole('tab', { name: 'AI agent access' }).click();
-  await expectCounts([3, 1, 2, 0, 1]);
-  await expect(page.locator('.inbound-panel')).toContainText('KEEP');
-  await page.getByRole('tab', { name: 'Human access' }).click();
-  await expectCounts([2, 2, 2, 1, 0]);
-  await page.getByRole('button', { name: 'Review exception' }).click();
-  await expect(page.getByRole('dialog')).toContainText('Patrick Sena · Head of Identity Governance');
-  await expect(page.getByRole('dialog')).toContainText('POL-SOD-017');
-  await page.getByRole('button', { name: 'Approve with sign-off' }).click();
-  await expectCounts([2, 2, 2, 1, 0]);
+test('keeping Legacy Finance DB Write updates the manual task scope to the agent only', async ({ page }) => {
+  await page.goto('/');
+  await recommend(page);
+  await changeRow(page, 'h-legacy', 'Keep', 'Human write access is retained for the approved reporting transition.');
+  await decideAll(page);
+  await applyDecisions(page);
+  await provision(page);
+  await expect(page.locator('.legacy-panel')).toContainText('AI agent');
+  const state = await storedState(page);
+  expect(state.tasks['h-legacy'].status).toBe('Retained');
+  expect(state.tasks['a-legacy'].status).toBe('Task open');
+  await confirmCompletion(page, false);
+  await nav(page, 'Audit trail');
+  await expect(accessRow(page, 'h-legacy')).toContainText('Changed from Remove to Keep');
+  await page.getByRole('tab', { name: 'Provisioning', exact: true }).click();
+  await expect(accessRow(page, 'h-legacy')).toContainText('Retained');
+  await expect(accessRow(page, 'a-legacy')).toContainText('Removed');
+  expect((await storedState(page)).tasks['h-legacy'].status).toBe('Retained');
 });
 
-test('meeting dates, participant labels, 10-minute guide and outcome questions stay consistent', async ({ page }) => {
+test('dates, names, policies, recommendation counts and hidden keyboard controls stay consistent', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.effective-date')).toContainText('Monday, 19 October 2026');
-  await expect(page.locator('.app-footer')).toContainText('Workspace date: Tuesday, 13 Oct 2026');
+  await expect(page.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
   await expect(page.locator('.user-footer')).toContainText('Patrick Sena');
   await expect(page.locator('.user-footer')).toContainText('Head of Identity Governance');
   await expect(page.locator('.user-avatar')).toHaveText('PS');
   await expect(page.locator('.top-avatar')).toHaveAttribute('title', 'Patrick Sena · Head of Identity Governance');
-  const eventNav = page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Role change event', exact: true });
-  await expect(eventNav).toHaveText('Role change event');
-  await page.getByRole('button', { name: 'Presenter guide' }).click();
+  const tasks = page.getByRole('button', { name: /My tasks/ });
+  await expect(tasks).toContainText('1');
+  await page.keyboard.press('Shift+G');
   const guide = page.getByRole('dialog');
-  await expect(guide.getByRole('heading', { name: '10-minute presenter guide' })).toBeVisible();
-  await expect(guide.locator('.guide-list li > strong')).toHaveText(['Identity · 1 min', 'Event · 1 min', 'Decision · 3 min', 'Fulfillment · 2 min', 'Evidence · 2 min', 'Outcomes · 1 min']);
-  await expect(guide).toContainText('five key records');
+  await expect(guide).toBeVisible();
+  await expect(guide).toContainText('10');
   await page.keyboard.press('Escape');
-  await nav(page, 'Role change event');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await assertProductLanguage(page);
+  await nav(page, 'Lifecycle events');
+  await expect(page.locator('main')).toContainText('Mover: Finance Analyst → Finance Manager');
   await expect(page.locator('main')).toContainText('Tuesday, 13 October 2026 · 09:00 UTC');
-  await expect(page.locator('main')).toContainText('Prepare access decisions now. Fulfill the approved changes on Monday, 19 October, Sarah’s effective date.');
-  await page.getByRole('button', { name: 'Evaluate access', exact: true }).first().click();
-  await review(page); await execute(page);
-  await expect(page.locator('.app-footer')).toContainText('Workspace date: Monday, 19 Oct 2026');
-  await expect(page.locator('.legacy-panel')).toContainText('Monday 19 October · 12:00 UTC');
-  await completeLegacy(page); await nav(page, 'Evidence');
-  const outcomes = page.locator('.outcomes-grid .outcome');
-  await expect(outcomes.locator('h3')).toHaveText([
-    'Access is re-evaluated when business context changes, with auditable evidence.',
-    '95%+ of movers fully productive on their effective date, including approved AI tools.',
-    'One governance model for people, agents, modern and legacy apps, without new custom logic.',
-  ]);
-  await expect(outcomes.locator('small')).toHaveText(['Patrick Sena · Head of Identity Governance', 'Tim Hintermann · Director HR Operations & HRIS', 'Andre Hostombe · Lead Enterprise Architect']);
-  await expect(outcomes.locator('.outcome-top svg')).toHaveCount(0);
-  await expect(page.locator('.outcome-footnote')).toContainText('program outcome');
-  await expect(page.locator('.outcome-footnote')).toContainText('separate from this individual role change');
+  for (const policy of ['POL-FIN-101', 'POL-RISK-204', 'POL-SOD-017', 'POL-AI-301', 'POL-AI-302', 'POL-AI-303']) await expect(page.locator('main')).toContainText(policy);
+  await page.getByRole('button', { name: 'Review access recommendations', exact: true }).first().click();
+  async function expectCounts(counts) {
+    const tiles = page.locator('.decision-summary > div');
+    await expect(tiles).toHaveCount(5);
+    for (let index = 0; index < counts.length; index += 1) {
+      await expect(tiles.nth(index).locator('strong')).toHaveText(String(counts[index]));
+      if (counts[index] === 0) await expect(tiles.nth(index)).toHaveClass(/zero-count/);
+    }
+  }
+  await expectCounts([2, 2, 2, 1, 0]);
+  await expect(page.locator('main')).toContainText('Decided 0 of 7');
+  await page.getByRole('tab', { name: 'AI agent', exact: true }).click();
+  await expectCounts([3, 1, 2, 0, 1]);
+  await expect(page.locator('main')).toContainText('Decided 1 of 7');
+  await decideAll(page);
+  await expect(tasks).not.toContainText('1');
+  await page.goto('/?reset=1');
+  await expect(page.getByRole('heading', { name: 'Identity overview', exact: true })).toBeVisible();
+  expect((await storedState(page)).actions).toEqual([]);
+  expect(new URL(page.url()).searchParams.has('reset')).toBe(false);
+  await assertProductLanguage(page);
+});
+
+test('mobile navigation and accessible drawer dismissal retain the existing responsive layout', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
+  await nav(page, 'Lifecycle events');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.keyboard.press('Shift+G');
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: 'Close details', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('button', { name: 'Close details', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await page.keyboard.press('Shift+R');
+  await expect(page.getByRole('heading', { name: 'Identity overview', exact: true })).toBeVisible();
+  await assertProductLanguage(page);
 });

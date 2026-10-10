@@ -1,0 +1,8 @@
+.provisioning-connected .section-title > .text-link { margin-left: auto; }
+.manual-not-required { padding: 22px 24px; border-top: 1px solid var(--line); font-size: 12px; }
+.audit-panel table { table-layout: auto; }
+.audit-panel th, .audit-panel td { vertical-align: top; }
+.audit-panel .timestamp-cell { min-width: 140px; }
+.audit-comment-cell { min-width: 130px; max-width: 220px; overflow-wrap: anywhere; }
+.audit-policy-lock { display: inline-flex; align-items: flex-start; gap: 5px; color: var(--red); font-size: 11px; min-width: 130px; }
+.audit-policy-lock svg { flex-shrink: 0; margin-top: 2px; }

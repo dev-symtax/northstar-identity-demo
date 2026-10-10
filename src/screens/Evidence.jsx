@@ -1,18 +1,37 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { ArrowRight, ChevronRight, ClipboardCheck, Download, Fingerprint, History } from 'lucide-react';
+import { ArrowRight, ClipboardCheck, Download, Fingerprint, History, LockKeyhole } from 'lucide-react';
 import { decisions, resourceName, subjectName } from '../data/catalog.js';
-import { OUTCOME_STAKEHOLDERS, SCENARIO } from '../data/scenario.js';
-import { controlComplete, readiness } from '../demo/state.js';
+import { SCENARIO } from '../data/scenario.js';
+import { actionLabel, getAccessDecision, legacyTaskRows } from '../demo/state.js';
 import { Badge, Button, Drawer, Empty, Field, Notice, PageTitle, SectionTitle, formatTime } from '../components/UI.jsx';
 import { useStepFocus } from '../components/useStepFocus.js';
+import '../styles/provisioning-audit.css';
 
-const byId = Object.fromEntries(decisions.map(d => [d.id, d]));
-const keyRows = new Set(['h-payment', 'a-inbound', 'a-payment', 'h-legacy', 'a-legacy']);
+const byId = Object.fromEntries(decisions.map(row => [row.id, row]));
+const keyIds = ['h-payment', 'a-inbound', 'a-payment', 'h-legacy', 'a-legacy'];
 function latest(records) {
   const grouped = new Map();
   records.forEach(record => grouped.set(record.rowId, record));
   return [...grouped.values()];
 }
+function identityLabel(row) {
+  return row.scope === 'human' ? 'Sarah Miller · User' : row.scope === 'inbound' ? 'Sarah Miller · Agent usage' : 'Finance Operations Agent · Agent permissions';
+}
+function decisionDetails(record, row, state) {
+  const current = getAccessDecision(row, state);
+  return {
+    recommendedAction: record.recommendedAction ?? current.recommendedAction,
+    decidedAction: Object.hasOwn(record, 'decidedAction') ? record.decidedAction : current.decidedAction,
+    status: record.status ?? current.status,
+    decidedBy: record.decidedBy ?? record.actor ?? current.decidedBy,
+    decidedAt: record.decidedAt ?? record.timestamp ?? current.decidedAt,
+    comment: record.comment ?? '',
+    reason: record.reason ?? record.why ?? row.why,
+    policyId: record.policyId ?? record.policy ?? row.policy,
+  };
+}
+const completionReference = record => record.status === 'Task open' ? 'Pending completion' : record.status === 'Not granted' ? 'No grant executed' : record.reference || '—';
+
 export default function Evidence({ state, navigate }) {
   const [tab, setTab] = useState('decision');
   const [history, setHistory] = useState(false);
@@ -22,35 +41,64 @@ export default function Evidence({ state, navigate }) {
   useStepFocus(tableRef, state.evaluated, { block: 'start' });
   const close = useCallback(() => setDetail(null), []);
   const decisionRows = history ? state.decisionEvidence : latest(state.decisionEvidence);
-  const fulfillmentRows = history ? state.fulfillmentEvidence : latest(state.fulfillmentEvidence);
-  const allRecords = tab === 'decision' ? decisionRows : fulfillmentRows;
-  const records = showAll ? allRecords : allRecords.filter(record => keyRows.has(record.rowId));
-  const outstanding = !controlComplete(state) || state.review === 'pending' || state.tasks['h-payment']?.status === 'Ready to execute';
-  const completionRef = row => row.status === 'Task open' ? 'Pending completion' : row.status === 'Not granted' ? 'No grant executed' : row.reference;
-  function exportEvidence() {
-    const enrich = record => ({ ...record, subject: subjectName(byId[record.rowId]), resource: resourceName(byId[record.rowId]), scope: byId[record.rowId].scope, ...(record.rowId === 'h-payment' ? { additionalPolicy: 'POL-SOD-017' } : {}) });
-    const bundle = { product: 'Northstar Identity', syntheticDemo: true, customer: 'Meridian Global', eventId: 'WD-MOV-2026-0842', source: 'Workday', previousRole: 'Finance Analyst', targetRole: 'Finance Manager', effectiveDate: SCENARIO.effectiveDateISO, timezone: 'UTC', decisionEvidence: state.decisionEvidence.map(enrich), fulfillmentEvidence: state.fulfillmentEvidence.map(enrich), outcomes: { coreRoleReady: readiness(state), obsoleteAccessRemoved: controlComplete(state), paymentReview: state.review, allControlsResolved: !outstanding } };
+  const provisioningRows = history ? state.fulfillmentEvidence : latest(state.fulfillmentEvidence);
+  const allRecords = tab === 'decision' ? decisionRows : provisioningRows;
+  const records = showAll ? allRecords : allRecords.filter(record => keyIds.includes(record.rowId)).sort((a, b) => keyIds.indexOf(a.rowId) - keyIds.indexOf(b.rowId));
+  const openManual = legacyTaskRows(state).length > 0;
+  function exportAuditTrail() {
+    const enrich = record => ({ ...record, identity: subjectName(byId[record.rowId]), access: resourceName(byId[record.rowId]), scope: byId[record.rowId].scope === 'human' ? 'User' : byId[record.rowId].scope === 'inbound' ? 'Agent usage' : 'Agent permissions', ...(record.rowId === 'h-payment' ? { additionalPolicy: 'POL-SOD-017' } : {}) });
+    const accessDecisions = decisions.map(row => ({ rowId: row.id, identity: subjectName(row), access: resourceName(row), ...getAccessDecision(row, state) }));
+    const bundle = { product: 'Northstar Identity', customer: 'Meridian Global', eventId: 'WD-MOV-2026-0842', source: 'Workday', receivedAt: SCENARIO.receivedAt, previousRole: 'Finance Analyst', targetRole: 'Finance Manager', effectiveDate: SCENARIO.effectiveDateISO, timezone: 'UTC', applied: state.applied, accessDecisions, decisionEvidence: state.decisionEvidence.map(enrich), provisioningEvidence: state.fulfillmentEvidence.map(enrich) };
     const url = URL.createObjectURL(new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }));
-    const a = document.createElement('a'); a.href = url; a.download = 'northstar-sarah-miller-evidence.json'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const link = document.createElement('a'); link.href = url; link.download = 'northstar-sarah-miller-audit-trail.json'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  if (!state.evaluated) return <><PageTitle eyebrow="AUDIT & ASSURANCE" title="A decision trail. An execution trail." description="Know why access should change—and prove whether it did." /><Empty title="No evidence recorded yet" onAction={() => navigate(1)}>Evaluate the Workday event to create decision evidence. Fulfillment evidence is recorded separately when the changes are executed.</Empty></>;
-  return <>
-    <PageTitle eyebrow="AUDIT & ASSURANCE · WD-MOV-2026-0842" title="Explain the decision. Prove the control." description="Two distinct evidence trails, linked to the same business event." action={<Button variant="secondary" icon={Download} onClick={exportEvidence}>Export evidence</Button>} />
-    <div className="evidence-intro-grid"><section className={`evidence-definition ${tab === 'decision' ? 'selected' : ''}`}><span className="definition-icon"><Fingerprint size={24} strokeWidth={1.5} /></span><div><span className="eyebrow">01 · DECISION EVIDENCE</span><h2>Why should access change?</h2><p>Who · What · Why · Policy · Timestamp · Decision</p><small>Records the access determination and any human approval.</small></div></section><section className={`evidence-definition ${tab === 'fulfillment' ? 'selected' : ''}`}><span className="definition-icon"><ClipboardCheck size={24} strokeWidth={1.5} /></span><div><span className="eyebrow">02 · FULFILLMENT EVIDENCE</span><h2>Did the change actually happen?</h2><p>How · Status · Owner · SLA · Completion reference</p><small>Records execution and exposes controls that remain open.</small></div></section></div>
-    {outstanding && <Notice tone="amber"><strong>Evidence does not yet prove all controls complete.</strong> {!state.fulfillmentStarted ? 'The decisions are recorded, but effective-date fulfillment has not run.' : !controlComplete(state) ? 'The legacy task remains open: Sarah’s direct and agent-mediated DB write access has not yet been proven removed.' : state.review === 'pending' ? 'Payment approval remains awaiting a human decision.' : 'The approved payment permission is awaiting execution.'} <button className="inline-link" onClick={() => navigate(!state.fulfillmentStarted || !controlComplete(state) || state.tasks['h-payment']?.status === 'Ready to execute' ? 3 : 2)}>Resolve outstanding control</button></Notice>}
-    <div className="evidence-toolbar"><div className="tabs" role="tablist" aria-label="Evidence type"><button role="tab" aria-selected={tab === 'decision'} className={tab === 'decision' ? 'active' : ''} onClick={() => setTab('decision')}><Fingerprint size={16} />Decision evidence<span>{latest(state.decisionEvidence).length}</span></button><button role="tab" aria-selected={tab === 'fulfillment'} className={tab === 'fulfillment' ? 'active' : ''} onClick={() => setTab('fulfillment')}><ClipboardCheck size={16} />Fulfillment evidence<span>{latest(state.fulfillmentEvidence).length}</span></button></div><label className="history-toggle"><input type="checkbox" checked={history} onChange={e => setHistory(e.target.checked)} /><History size={15} />Show full history</label></div>
-    <section className="panel evidence-panel" ref={tableRef}><SectionTitle title={tab === 'decision' ? 'Decision evidence' : 'Fulfillment evidence'} description={history ? 'Recorded transitions, including earlier review and open-task states.' : showAll ? 'Latest recorded state for each access determination.' : 'Five key controls: human approval, agent access and block, and both legacy removals.'}><button type="button" className="text-link" aria-expanded={showAll} onClick={() => setShowAll(value => !value)}>{showAll ? 'Show 5 key records' : `Show all ${decisions.length} records`}</button><span className="muted-label">{records.length} records</span></SectionTitle>
-      {records.length ? <table><thead><tr>{(tab === 'decision' ? ['Who / what', 'Decision', 'Why / policy', 'Decision timestamp', ''] : ['What changed', 'How / owner', 'Execution status', 'SLA / due', 'Completion reference', '']).map((h, i) => <th key={i}>{h}</th>)}</tr></thead><tbody>{records.map(record => {
-        const row = byId[record.rowId];
-        return <tr key={record.id} data-row-id={row.id}><td><button className="table-link" onClick={() => setDetail({ type: tab, record })}>{resourceName(row)}</button><small className="cell-subtitle">{row.scope === 'outbound' ? 'Agent on behalf of Sarah Miller' : 'Sarah Miller'} · {row.scope}</small></td>
-          {tab === 'decision' ? <><td><Badge>{record.decision}</Badge></td><td className="reason-cell">{record.why}<small className="cell-subtitle policy-id">{record.policy}{row.id === 'h-payment' && ' + POL-SOD-017'}</small></td><td className="timestamp-cell">{formatTime(record.timestamp)}<small className="cell-subtitle">{record.actor}</small></td></> : <><td>{record.method}<small className="cell-subtitle">{record.owner}</small></td><td><Badge>{record.status}</Badge></td><td>{record.sla}</td><td className="reference-cell">{completionRef(record)}</td></>}
-          <td><button className="icon-button" aria-label={`View ${tab} evidence for ${resourceName(row)} ${record.id}`} onClick={() => setDetail({ type: tab, record })}><ChevronRight size={16} /></button></td></tr>;
-      })}</tbody></table> : <div className="table-empty evidence-empty"><ClipboardCheck size={25} /><h3>No fulfillment evidence yet</h3><p>Decisions are recorded. Execution has not started.</p><Button variant="secondary" icon={ArrowRight} onClick={() => navigate(3)}>Open fulfillment</Button></div>}
-      <div className="table-footer"><span>Event WD-MOV-2026-0842 · Workday</span><span>UTC timestamps</span></div></section>
-    <section className="outcomes-section"><SectionTitle title="Validate the outcomes" description="Did we cover your three outcomes?" /><div className="outcomes-grid"><Outcome name="Security" stakeholder={OUTCOME_STAKEHOLDERS.security} title="Access is re-evaluated when business context changes, with auditable evidence." text={controlComplete(state) ? 'Sarah’s obsolete direct and delegated access is removed; payment approval remains human-only.' : 'Policy decisions are recorded; both legacy removals still require execution evidence.'} /><Outcome name="HR" stakeholder={OUTCOME_STAKEHOLDERS.hr} title="95%+ of movers fully productive on their effective date, including approved AI tools." text={readiness(state) ? `Sarah’s required manager access and approved AI tool are ready on ${SCENARIO.effectiveDate}.` : `Sarah’s manager access and approved AI tool are prepared for ${SCENARIO.effectiveDate}.`} /><Outcome name="Architecture" stakeholder={OUTCOME_STAKEHOLDERS.architecture} title="One governance model for people, agents, modern and legacy apps, without new custom logic." text="The same policy decisions drive connected-app APIs and one owned legacy task for human and agent access." /></div><p className="outcome-footnote">Mover readiness is measured across Meridian’s transformation. The 95%+ target is a program outcome, separate from this individual role change.</p></section>
-    {detail && <Drawer title={resourceName(byId[detail.record.rowId])} subtitle={detail.type === 'decision' ? 'DECISION EVIDENCE' : 'FULFILLMENT EVIDENCE'} onClose={close}><dl><Field label="Event">WD-MOV-2026-0842 · Workday role change</Field><Field label="Who / subject">{subjectName(byId[detail.record.rowId])}</Field><Field label="What / resource">{resourceName(byId[detail.record.rowId])}</Field>{detail.type === 'decision' ? <><Field label="Decision"><Badge>{detail.record.decision}</Badge></Field><Field label="Why">{detail.record.why}</Field><Field label="Policy">{detail.record.policy}{detail.record.rowId === 'h-payment' && ' + POL-SOD-017'}</Field><Field label="Decision actor">{detail.record.actor}</Field><Field label="Decision timestamp">{formatTime(detail.record.timestamp)}</Field></> : <><Field label="How executed">{detail.record.method}</Field><Field label="Execution status"><Badge>{detail.record.status}</Badge></Field><Field label="Owner">{detail.record.owner}</Field><Field label="SLA / due">{detail.record.sla}</Field>{detail.record.status === 'Task open' && <Field label="Task reference">{detail.record.reference}</Field>}<Field label="Completion reference">{completionRef(detail.record)}</Field><Field label="Execution timestamp">{formatTime(detail.record.timestamp)}</Field>{detail.record.task && <Field label="Linked task">{detail.record.task}</Field>}{detail.record.note && <Field label="Verification note">{detail.record.note}</Field>}</>}</dl><Notice>{detail.type === 'decision' ? 'This record proves an access determination. It does not prove execution. See fulfillment evidence for actual completion.' : detail.record.status === 'Task open' ? 'An open task proves ownership and tracking. It does not prove the access was removed.' : 'Execution evidence is linked to the policy decision and source event.'}</Notice><Button variant="secondary" onClick={() => { setTab(detail.type === 'decision' ? 'fulfillment' : 'decision'); close(); }}>View {detail.type === 'decision' ? 'fulfillment' : 'decision'} evidence</Button></Drawer>}
+  if (!state.evaluated) return <>
+    <PageTitle eyebrow="AUDIT · WD-MOV-2026-0842" title="Audit trail" description="Access decisions and provisioning records are linked to the lifecycle event." />
+    <Empty title="No audit records" action="View lifecycle event" onAction={() => navigate(1)}>Review the lifecycle event to generate access recommendations and create the audit trail.</Empty>
   </>;
-}
-function Outcome({ name, stakeholder, title, text }) {
-  return <div className="outcome"><div className="outcome-top"><span className="eyebrow">{name.toUpperCase()}</span></div><h3>{title}</h3><p>{text}</p><small>{stakeholder}</small></div>;
+  const detailRow = detail && byId[detail.record.rowId];
+  const detailDecision = detail?.type === 'decision' && decisionDetails(detail.record, detailRow, state);
+  return <>
+    <PageTitle eyebrow="AUDIT · WD-MOV-2026-0842" title="Audit trail" description={`Access decisions and provisioning records for Sarah Miller’s role change effective ${SCENARIO.effectiveDate}.`} action={<Button variant="secondary" icon={Download} onClick={exportAuditTrail}>Export audit trail</Button>} />
+    <div className="evidence-intro-grid">
+      <section className={`evidence-definition ${tab === 'decision' ? 'selected' : ''}`}><span className="definition-icon"><Fingerprint size={24} strokeWidth={1.5} /></span><div><span className="eyebrow">ACCESS DECISIONS</span><h2>Recommendations and decisions</h2><p>Identity · Access · Action · Reviewer · Policy</p><small>Includes accepted recommendations, overrides and policy-locked access.</small></div></section>
+      <section className={`evidence-definition ${tab === 'provisioning' ? 'selected' : ''}`}><span className="definition-icon"><ClipboardCheck size={24} strokeWidth={1.5} /></span><div><span className="eyebrow">PROVISIONING ACTIVITY</span><h2>Execution and completion</h2><p>Method · Status · Owner · SLA · Reference</p><small>Includes automated results and manual task completion.</small></div></section>
+    </div>
+    {(!state.fulfillmentStarted || openManual) && <Notice tone="amber"><strong>{openManual ? '1 manual task open.' : state.applied ? 'Provisioning has not started.' : 'Access decisions have not been applied.'}</strong> <button className="inline-link" onClick={() => navigate(state.applied ? 3 : 2)}>{state.applied ? 'Open provisioning' : 'Review access recommendations'}</button></Notice>}
+    <div className="evidence-toolbar"><div className="tabs" role="tablist" aria-label="Audit record type">
+      <button role="tab" aria-label="Decisions" aria-selected={tab === 'decision'} className={tab === 'decision' ? 'active' : ''} onClick={() => setTab('decision')}><Fingerprint size={16} />Decisions<span>{latest(state.decisionEvidence).length}</span></button>
+      <button role="tab" aria-label="Provisioning" aria-selected={tab === 'provisioning'} className={tab === 'provisioning' ? 'active' : ''} onClick={() => setTab('provisioning')}><ClipboardCheck size={16} />Provisioning<span>{latest(state.fulfillmentEvidence).length}</span></button>
+    </div><label className="history-toggle"><input type="checkbox" checked={history} onChange={event => setHistory(event.target.checked)} /><History size={15} />Show full history</label></div>
+    <section className="panel evidence-panel audit-panel" ref={tableRef}>
+      <SectionTitle title={tab === 'decision' ? 'Decisions' : 'Provisioning'} description={history ? 'Recorded transitions for the lifecycle event.' : showAll ? 'Latest record for each access recommendation.' : 'Payment approval, agent usage, policy restriction and both legacy access decisions.'}>
+        <button type="button" className="text-link" aria-expanded={showAll} onClick={() => setShowAll(value => !value)}>{showAll ? 'Show key records (5)' : `Show all records (${decisions.length})`}</button><span className="muted-label">{records.length} records</span>
+      </SectionTitle>
+      {records.length ? <table><thead><tr>{(tab === 'decision' ? ['Identity / access', 'Recommended', 'Decided', 'Decided by', 'Policy', 'Timestamp', 'Comment'] : ['Identity / access', 'How', 'Status', 'Owner', 'SLA / due', 'Completion reference']).map(header => <th key={header}>{header}</th>)}</tr></thead><tbody>{records.map(record => {
+        const row = byId[record.rowId];
+        const entry = tab === 'decision' ? decisionDetails(record, row, state) : null;
+        const locked = entry?.status === 'Policy-locked' || row.id === 'a-payment';
+        const changed = entry?.status === 'Changed';
+        return <tr key={record.id} data-row-id={row.id}>
+          <td><button className="table-link" onClick={() => setDetail({ type: tab, record })}>{resourceName(row)}</button><small className="cell-subtitle">{identityLabel(row)}</small></td>
+          {entry ? <>
+            <td><Badge>{actionLabel(entry.recommendedAction)}</Badge></td>
+            <td>{locked ? <span className="audit-policy-lock"><LockKeyhole size={13} />Not permitted by policy · POL-AI-303</span> : <><Badge>{entry.decidedAction ? actionLabel(entry.decidedAction) : 'Not decided'}</Badge><small className="cell-subtitle">{changed ? `Changed from ${actionLabel(entry.recommendedAction)} to ${actionLabel(entry.decidedAction)}` : entry.status}</small></>}</td>
+            <td>{entry.decidedAction || locked ? entry.decidedBy || 'Policy engine' : '—'}</td><td className="policy-id">{entry.policyId}{row.id === 'h-payment' && <small className="cell-subtitle policy-id">POL-SOD-017</small>}</td><td className="timestamp-cell">{formatTime(entry.decidedAt || record.timestamp)}</td><td className="audit-comment-cell">{entry.comment || '—'}</td>
+          </> : <><td>{record.method}</td><td><Badge>{record.status}</Badge></td><td>{record.owner}</td><td>{record.sla}</td><td className="reference-cell">{completionReference(record)}</td></>}
+        </tr>;
+      })}</tbody></table> : <div className="table-empty evidence-empty"><ClipboardCheck size={25} /><h3>No provisioning records</h3><p>Provisioning activity is recorded after the applied decisions are executed.</p><Button variant="secondary" icon={ArrowRight} onClick={() => navigate(3)}>Open provisioning</Button></div>}
+      <div className="table-footer"><span>Event WD-MOV-2026-0842 · Workday</span><span>UTC timestamps</span></div>
+    </section>
+    {detail && <Drawer title={resourceName(detailRow)} subtitle={detail.type === 'decision' ? 'ACCESS DECISION' : 'PROVISIONING RECORD'} onClose={close}>
+      <dl><Field label="Event">WD-MOV-2026-0842 · Workday</Field><Field label="Identity">{identityLabel(detailRow)}</Field><Field label="Access">{resourceName(detailRow)}</Field>
+        {detailDecision ? <>
+          <Field label="Recommended">{actionLabel(detailDecision.recommendedAction)}</Field><Field label="Decided">{detailDecision.status === 'Policy-locked' ? 'Not permitted by policy · POL-AI-303' : detailDecision.decidedAction ? actionLabel(detailDecision.decidedAction) : 'Not decided'}</Field><Field label="Status">{detailDecision.status}</Field>
+          <Field label="Reason">{detailDecision.reason}</Field><Field label="Policy">{detailDecision.policyId}{detailRow.id === 'h-payment' && ' · POL-SOD-017'}</Field><Field label="Decided by">{detailDecision.decidedAction ? detailDecision.decidedBy || 'Policy engine' : '—'}</Field><Field label="Timestamp">{formatTime(detailDecision.decidedAt || detail.record.timestamp)}</Field><Field label="Comment">{detailDecision.comment || '—'}</Field>
+        </> : <>
+          <Field label="How">{detail.record.method}</Field><Field label="Status"><Badge>{detail.record.status}</Badge></Field><Field label="Owner">{detail.record.owner}</Field><Field label="SLA / due">{detail.record.sla}</Field>{detail.record.status === 'Task open' && <Field label="Task reference">{detail.record.reference}</Field>}<Field label="Completion reference">{completionReference(detail.record)}</Field><Field label="Timestamp">{formatTime(detail.record.timestamp)}</Field>{detail.record.task && <Field label="Linked task">{detail.record.task}</Field>}{detail.record.note && <Field label="Verification note">{detail.record.note}</Field>}
+        </>}
+      </dl><Notice>{detail.type === 'decision' ? detailDecision.status === 'Policy-locked' ? 'Payment approval is restricted to human identities (POL-AI-303). This cannot be overridden.' : 'The decision record is linked to the lifecycle event. Provisioning is recorded separately.' : detail.record.status === 'Task open' ? 'Completion is pending verification of the selected access removals.' : 'The provisioning record is linked to the applied access decision.'}</Notice>
+      <Button variant="secondary" onClick={() => { setTab(detail.type === 'decision' ? 'provisioning' : 'decision'); close(); }}>View {detail.type === 'decision' ? 'provisioning' : 'decisions'}</Button>
+    </Drawer>}
+  </>;
 }

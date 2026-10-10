@@ -1,81 +1,190 @@
-import { decisions } from '../data/catalog.js';
+import { decisions, applicationById, entitlementById } from '../data/catalog.js';
 import { REVIEWER, SCENARIO } from '../data/scenario.js';
 
 export const STORAGE_KEY = 'northstar-identity-demo-v1';
+const STATE_VERSION = 2;
+const ACTIONS = ['KEEP', 'GRANT', 'REMOVE', 'REVIEW', 'NOT_PERMITTED', 'DO_NOT_GRANT'];
+const REVIEWER_LABEL = `${REVIEWER.name} · ${REVIEWER.role}`;
+const SYSTEM_ACTOR = 'Northstar policy engine';
+const EVENT_ID = 'WD-MOV-2026-0842';
+
 export const initialState = () => ({
-  version: 1, evaluated: false, review: 'pending', reviewNote: '', fulfillmentStarted: false,
-  tasks: {}, decisionEvidence: [], fulfillmentEvidence: [], actionCount: 0, actions: [],
+  version: STATE_VERSION, evaluated: false, applied: false, review: 'pending', reviewNote: '',
+  fulfillmentStarted: false, accessDecisions: {}, tasks: {}, decisionEvidence: [],
+  fulfillmentEvidence: [], actionCount: 0, actions: [],
 });
 
-function executionTimestamp(state) {
-  return new Date(Date.parse(SCENARIO.fulfillmentAt) + state.actionCount * 60000).toISOString();
+function recommendation(row) {
+  return {
+    recommendedAction: row.recommendedAction, policyId: row.policyId, reason: row.reason,
+    decidedAction: null, status: row.recommendedAction === 'REVIEW' ? 'Needs review' : 'Recommended',
+    decidedBy: null, decidedAt: null, comment: '',
+  };
 }
-function decisionRecord(row, decision, at, actor, why = row.why) {
-  return { id: `DE-${row.id}-${decision}`, rowId: row.id, eventId: 'WD-MOV-2026-0842', actor, decision, why, policy: row.policy, timestamp: at };
+export function getAccessDecision(row, state) {
+  return state.accessDecisions?.[row.id] || recommendation(row);
+}
+export function actionLabel(action) {
+  return { KEEP: 'Keep', GRANT: 'Grant', REMOVE: 'Remove', REVIEW: 'Review',
+    NOT_PERMITTED: 'Not permitted by policy', DO_NOT_GRANT: 'Do not grant' }[action] || 'Not decided';
+}
+function decisionRecord(row, model, sequence, at = model.decidedAt || SCENARIO.receivedAt) {
+  return {
+    id: `DE-${row.id}-${sequence}`, rowId: row.id, eventId: EVENT_ID,
+    actor: model.decidedBy || SYSTEM_ACTOR, decision: model.decidedAction || model.recommendedAction,
+    why: model.reason, policy: model.policyId, timestamp: at, ...model,
+  };
 }
 function executionRecord(row, status, at, extra = {}) {
-  return { id: `FE-${row.id}-${status}`, rowId: row.id, eventId: 'WD-MOV-2026-0842', status, timestamp: at, ...extra };
+  return { id: `FE-${row.id}-${status}`, rowId: row.id, eventId: EVENT_ID, status, timestamp: at, ...extra };
+}
+function executionTimestamp(state) {
+  // Editing access decisions does not advance the effective-date execution past its task SLA.
+  return new Date(Date.parse(SCENARIO.fulfillmentAt) + Math.min(state.actionCount, 239) * 60000).toISOString();
+}
+function decisionFor(row, action, comment = '') {
+  return {
+    ...recommendation(row), decidedAction: action,
+    status: row.recommendedAction === 'REVIEW' || action === row.recommendedAction ? 'Accepted' : 'Changed',
+    decidedBy: REVIEWER_LABEL, decidedAt: SCENARIO.approvalAt, comment,
+  };
+}
+function recordDecisions(state, changes, extra = {}) {
+  const accessDecisions = { ...state.accessDecisions };
+  const records = changes.map(([row, model], index) => {
+    accessDecisions[row.id] = model;
+    return decisionRecord(row, model, `${state.actionCount + 1}-${index}`);
+  });
+  return { ...state, ...extra, accessDecisions, decisionEvidence: [...state.decisionEvidence, ...records], actionCount: state.actionCount + 1 };
+}
+function editable(state) { return state.evaluated && !state.applied; }
+function validComment(value, required = false) {
+  return typeof value === 'string' && value.length <= 3000 && (!required || Boolean(value.trim()));
+}
+function reviewDecision(state, result, note) {
+  if (!editable(state) || !['approved', 'rejected'].includes(result) || !validComment(note, true)) return state;
+  if (result === 'approved' && getAccessDecision(decisions.find(row => row.id === 'h-ar'), state).decidedAction === 'KEEP') return state;
+  const row = decisions.find(item => item.id === 'h-payment');
+  const model = decisionFor(row, result === 'approved' ? 'GRANT' : 'DO_NOT_GRANT', note.trim());
+  const previous = getAccessDecision(row, state);
+  if (state.review === result && previous.comment === model.comment) return state;
+  return recordDecisions(state, [[row, model]], { review: result, reviewNote: model.comment });
+}
+export function canApplyDecisions(state) {
+  if (!state.evaluated || state.applied || state.review === 'pending') return false;
+  if (!decisions.every(row => getAccessDecision(row, state).decidedAction !== null)) return false;
+  const action = id => getAccessDecision(decisions.find(row => row.id === id), state).decidedAction;
+  return action('h-payment') !== 'GRANT' || action('h-ar') === 'REMOVE';
+}
+export function decisionSummary(state) {
+  const byAction = Object.fromEntries(ACTIONS.map(action => [action, 0]));
+  const applications = new Map();
+  let decided = 0;
+  for (const row of decisions) {
+    const action = getAccessDecision(row, state).decidedAction;
+    if (!action) continue;
+    decided += 1;
+    byAction[action] += 1;
+    const application = row.entitlement ? applicationById[entitlementById[row.entitlement].app].name : 'Finance Operations Agent';
+    const group = applications.get(application) || { application, name: application, count: 0, counts: {} };
+    group.count += 1;
+    group.counts[action] = (group.counts[action] || 0) + 1;
+    applications.set(application, group);
+  }
+  return { byAction, byApplication: [...applications.values()], total: decisions.length, decided };
 }
 function reduceState(state, action) {
+  if (!action || typeof action.type !== 'string') return state;
   if (action.type === 'RESET') return initialState();
   if (action.type === 'EVALUATE') {
     if (state.evaluated) return state;
-    return { ...state, evaluated: true, actionCount: state.actionCount + 1,
-      decisionEvidence: decisions.map(row => decisionRecord(row, row.decision, SCENARIO.receivedAt, 'Northstar policy evaluation')) };
+    const accessDecisions = Object.fromEntries(decisions.map(row => {
+      const model = recommendation(row);
+      if (row.recommendedAction === 'NOT_PERMITTED') Object.assign(model, {
+        decidedAction: 'NOT_PERMITTED', status: 'Policy-locked', decidedBy: SYSTEM_ACTOR, decidedAt: SCENARIO.receivedAt,
+      });
+      return [row.id, model];
+    }));
+    return { ...state, evaluated: true, accessDecisions, actionCount: state.actionCount + 1,
+      decisionEvidence: decisions.map(row => decisionRecord(row, accessDecisions[row.id], 'recommendation')) };
   }
-  if (action.type === 'REVIEW') {
-    if (!state.evaluated || state.review !== 'pending' || !['approved', 'rejected'].includes(action.result) || !action.note?.trim()) return state;
-    const row = decisions.find(d => d.id === 'h-payment');
-    const next = { ...state, review: action.result, reviewNote: action.note.trim(), actionCount: state.actionCount + 1,
-      decisionEvidence: [...state.decisionEvidence, decisionRecord(row, action.result === 'approved' ? 'APPROVED' : 'DENIED', SCENARIO.approvalAt, `${REVIEWER.name} · ${REVIEWER.role}`, action.note.trim())] };
-    // A late approval is eligible for a subsequent execution only after SoD removal.
-    if (state.fulfillmentStarted) {
-      next.tasks = { ...state.tasks, 'h-payment': { status: action.result === 'approved' ? 'Ready to execute' : 'Not granted' } };
-      if (action.result === 'rejected') next.fulfillmentEvidence = [...state.fulfillmentEvidence, executionRecord(row, 'Not granted', executionTimestamp(state), { method: 'Grant withheld after reviewer denial', owner: 'Identity Operations', sla: 'Not applicable', reference: 'REVIEW-0842-DENIED' })];
+  if (action.type === 'ACCEPT_ALL') {
+    if (!editable(state) || !['human', 'agent'].includes(action.scope)) return state;
+    const rows = decisions.filter(row => (action.scope === 'human' ? row.scope === 'human' : row.scope !== 'human')
+      && !['REVIEW', 'NOT_PERMITTED'].includes(row.recommendedAction) && !getAccessDecision(row, state).decidedAction);
+    return rows.length ? recordDecisions(state, rows.map(row => [row, decisionFor(row, row.recommendedAction)])) : state;
+  }
+  if (action.type === 'DECIDE') {
+    if (!editable(state) || !ACTIONS.includes(action.action)) return state;
+    const row = decisions.find(item => item.id === action.rowId);
+    if (!row || row.recommendedAction === 'NOT_PERMITTED') return state;
+    if (row.recommendedAction === 'REVIEW') return action.action === 'DO_NOT_GRANT' ? reviewDecision(state, 'rejected', action.comment) : state;
+    const allowed = ['KEEP', 'REMOVE'].includes(row.recommendedAction) ? ['KEEP', 'REMOVE'] : ['GRANT', 'DO_NOT_GRANT'];
+    if (!allowed.includes(action.action)) return state;
+    if (row.id === 'h-ar' && action.action === 'KEEP' && state.review !== 'rejected') return state;
+    const comment = action.comment ?? '';
+    if (!validComment(comment, action.action !== row.recommendedAction)) return state;
+    const model = decisionFor(row, action.action, comment.trim());
+    const previous = getAccessDecision(row, state);
+    if (previous.decidedAction === model.decidedAction && previous.comment === model.comment) return state;
+    return recordDecisions(state, [[row, model]]);
+  }
+  if (action.type === 'REVIEW') return reviewDecision(state, action.result, action.note);
+  if (action.type === 'RESOLVE_SOD') {
+    if (!editable(state) || !['remove-ar', 'deny-payment'].includes(action.resolution)) return state;
+    const ar = decisions.find(row => row.id === 'h-ar');
+    const comment = action.comment ?? '';
+    if (!validComment(comment, action.resolution === 'deny-payment')) return state;
+    if (action.resolution === 'remove-ar') {
+      const model = decisionFor(ar, 'REMOVE', comment.trim());
+      const previous = getAccessDecision(ar, state);
+      return previous.decidedAction === 'REMOVE' && previous.comment === model.comment ? state : recordDecisions(state, [[ar, model]]);
     }
-    return next;
+    const payment = decisions.find(row => row.id === 'h-payment');
+    return recordDecisions(state, [[ar, decisionFor(ar, 'KEEP', comment.trim())], [payment, decisionFor(payment, 'DO_NOT_GRANT', comment.trim())]], {
+      review: 'rejected', reviewNote: comment.trim(),
+    });
+  }
+  if (action.type === 'APPLY_DECISIONS') {
+    return canApplyDecisions(state) ? { ...state, applied: true, actionCount: state.actionCount + 1 } : state;
   }
   if (action.type === 'RUN_FULFILLMENT') {
-    if (!state.evaluated) return state;
-    const tasks = { ...state.tasks };
-    const evidence = [...state.fulfillmentEvidence];
-    let changed = !state.fulfillmentStarted;
-    // Revoke incompatible operational access before granting payment approval.
-    const ordered = [...decisions].sort((a, b) => (a.decision === 'REMOVE' ? -1 : 0) - (b.decision === 'REMOVE' ? -1 : 0));
+    if (!state.applied || state.fulfillmentStarted) return state;
+    const tasks = {};
+    const evidence = [];
+    const ordered = [...decisions].sort((a, b) => Number(getAccessDecision(b, state).decidedAction === 'REMOVE') - Number(getAccessDecision(a, state).decidedAction === 'REMOVE'));
     ordered.forEach((row, index) => {
-      const at = new Date(Date.parse(SCENARIO.fulfillmentAt) + (state.fulfillmentStarted ? state.actionCount * 60000 : 0) + index * 1000).toISOString();
-      const existing = tasks[row.id];
-      if (existing && !['Awaiting approval', 'Ready to execute'].includes(existing.status)) return;
-      if (existing?.status === 'Awaiting approval' && state.review === 'pending') return;
-      changed = true;
-      if (row.decision === 'KEEP') {
-        tasks[row.id] = { status: 'Retained' };
-        evidence.push(executionRecord(row, 'Retained', at, { method: 'Existing access verified', owner: 'Identity Operations', sla: 'No change required', reference: `VERIFY-${row.id}` }));
-      } else if (row.decision === 'BLOCK') {
-        tasks[row.id] = { status: 'Blocked' };
-        evidence.push(executionRecord(row, 'Blocked', at, { method: 'Delegation policy enforcement', owner: 'AI Governance', sla: 'Effective immediately', reference: 'CONTROL-AI-303-0842' }));
-      } else if (row.id === 'h-payment' && state.review !== 'approved') {
-        tasks[row.id] = { status: state.review === 'rejected' ? 'Not granted' : 'Awaiting approval' };
-        if (state.review === 'rejected') evidence.push(executionRecord(row, 'Not granted', at, { method: 'Grant withheld after reviewer denial', owner: 'Identity Operations', sla: 'Not applicable', reference: 'REVIEW-0842-DENIED' }));
-      } else if (row.entitlement === 'legacy-write') {
-        tasks[row.id] = { status: 'Task open' };
-        evidence.push(executionRecord(row, 'Task open', at, { method: 'Controlled manual task', owner: 'Martin Keller · Finance Platforms', sla: SCENARIO.legacyDue, reference: 'SN-TASK-004812' }));
+      const action = getAccessDecision(row, state).decidedAction;
+      const at = new Date(Date.parse(SCENARIO.fulfillmentAt) + index * 1000).toISOString();
+      let status; let detail;
+      if (action === 'KEEP') {
+        status = 'Retained'; detail = { method: 'Existing access verified', owner: 'Identity Operations', sla: 'No change required', reference: `VERIFY-${row.id}` };
+      } else if (action === 'NOT_PERMITTED') {
+        status = 'Not permitted by policy'; detail = { method: 'Policy enforcement', owner: 'AI Governance', sla: 'Effective immediately', reference: 'CONTROL-AI-303-0842' };
+      } else if (action === 'DO_NOT_GRANT') {
+        status = 'Not granted'; detail = { method: 'Grant withheld by access decision', owner: 'Identity Operations', sla: 'Not applicable', reference: `DECISION-0842-${row.id.toUpperCase()}` };
+      } else if (row.entitlement === 'legacy-write' && action === 'REMOVE') {
+        status = 'Task open'; detail = { method: 'Manual access removal', owner: 'Martin Keller · Finance Platforms', sla: SCENARIO.legacyDue, reference: 'SN-TASK-004812' };
       } else {
-        if (row.id === 'h-payment' && tasks['h-ar']?.status !== 'Removed') return;
-        const status = row.decision === 'REMOVE' ? 'Removed' : 'Granted';
-        tasks[row.id] = { status };
-        evidence.push(executionRecord(row, status, at, { method: row.scope === 'outbound' ? 'Delegated permission API' : 'Application connector API', owner: 'Identity Operations', sla: 'Effective date · 08:00 UTC', reference: `API-0842-${row.id.toUpperCase()}` }));
+        // A conflicting operational permission must be removed before payment approval is activated.
+        if (row.id === 'h-payment' && action === 'GRANT' && tasks['h-ar']?.status !== 'Removed') return;
+        status = action === 'REMOVE' ? 'Removed' : 'Granted';
+        detail = { method: row.scope === 'outbound' ? 'Agent permission API' : 'Application connector API', owner: 'Identity Operations', sla: 'Effective date · 08:00 UTC', reference: `API-0842-${row.id.toUpperCase()}` };
       }
+      tasks[row.id] = { status };
+      evidence.push(executionRecord(row, status, at, detail));
     });
-    return changed ? { ...state, fulfillmentStarted: true, tasks, fulfillmentEvidence: evidence, actionCount: state.actionCount + 1 } : state;
+    return { ...state, fulfillmentStarted: true, tasks, fulfillmentEvidence: evidence, actionCount: state.actionCount + 1 };
   }
   if (action.type === 'COMPLETE_LEGACY') {
-    if (!state.fulfillmentStarted || state.tasks['h-legacy']?.status !== 'Task open' || !action.reference?.trim() || !action.note?.trim()) return state;
+    const rows = legacyTaskRows(state);
+    if (!state.fulfillmentStarted || !rows.length || typeof action.reference !== 'string' || typeof action.note !== 'string'
+      || !action.reference.trim() || !action.note.trim() || action.reference.length > 160 || action.note.length > 1500) return state;
     const tasks = { ...state.tasks };
-    const records = ['h-legacy', 'a-legacy'].map(id => {
-      tasks[id] = { status: 'Removed' };
-      return executionRecord(decisions.find(d => d.id === id), 'Removed', executionTimestamp(state), {
-        method: 'DBA revocation + delegated access verification', owner: 'Martin Keller · Finance Platforms',
+    const records = rows.map(row => {
+      tasks[row.id] = { status: 'Removed' };
+      return executionRecord(row, 'Removed', executionTimestamp(state), {
+        method: 'DBA access revocation and verification', owner: 'Martin Keller · Finance Platforms',
         sla: SCENARIO.legacyDue, reference: action.reference.trim(), note: action.note.trim(), task: 'SN-TASK-004812',
       });
     });
@@ -86,53 +195,61 @@ function reduceState(state, action) {
 
 export function demoReducer(state, action) {
   const next = reduceState(state, action);
-  if (action.type === 'RESET') return next;
+  if (action?.type === 'RESET') return next;
   if (next === state) return state;
   const savedAction = { type: action.type };
+  if (action.type === 'ACCEPT_ALL') savedAction.scope = action.scope;
+  if (action.type === 'DECIDE') Object.assign(savedAction, { rowId: action.rowId, action: action.action, comment: (action.comment ?? '').trim() });
   if (action.type === 'REVIEW') Object.assign(savedAction, { result: action.result, note: action.note.trim() });
+  if (action.type === 'RESOLVE_SOD') Object.assign(savedAction, { resolution: action.resolution, comment: (action.comment ?? '').trim() });
   if (action.type === 'COMPLETE_LEGACY') Object.assign(savedAction, { reference: action.reference.trim(), note: action.note.trim() });
   return { ...next, actions: [...state.actions, savedAction] };
 }
 
 export function effectiveDecision(row, state) {
-  if (row.id === 'h-payment' && state.review !== 'pending') return state.review === 'approved' ? 'APPROVED' : 'DENIED';
-  return row.decision;
+  return getAccessDecision(row, state).decidedAction || row.recommendedAction;
 }
 export function fulfillmentStatus(row, state) {
   if (state.tasks[row.id]) return state.tasks[row.id].status;
-  if (!state.evaluated) return 'Not evaluated';
-  if (row.decision === 'KEEP') return 'No change required';
-  if (row.decision === 'BLOCK') return 'Policy guardrail';
-  if (row.id === 'h-payment') return state.review === 'pending' ? 'Awaiting approval' : state.review === 'rejected' ? 'Not granted' : 'Scheduled';
+  if (!state.evaluated) return 'Not reviewed';
+  const action = getAccessDecision(row, state).decidedAction;
+  if (!action) return 'Awaiting decision';
+  if (!state.applied) return 'Not applied';
+  if (action === 'KEEP') return 'No change required';
+  if (action === 'NOT_PERMITTED') return 'Not permitted by policy';
+  if (action === 'DO_NOT_GRANT') return 'Not granted';
   return 'Scheduled';
 }
+export function legacyTaskRows(state) {
+  return decisions.filter(row => row.entitlement === 'legacy-write' && state.tasks[row.id]?.status === 'Task open');
+}
 export function readiness(state) {
-  const required = ['h-dashboard', 'h-budget', 'a-dashboard'];
-  return state.fulfillmentStarted && required.every(id => state.tasks[id]?.status === 'Granted');
+  return state.fulfillmentStarted && decisions.filter(row => getAccessDecision(row, state).decidedAction === 'GRANT').every(row => state.tasks[row.id]?.status === 'Granted');
 }
 export function controlComplete(state) {
-  return state.fulfillmentStarted && ['h-ar', 'h-legacy', 'a-ar', 'a-legacy'].every(id => state.tasks[id]?.status === 'Removed');
+  return state.fulfillmentStarted && decisions.filter(row => getAccessDecision(row, state).decidedAction === 'REMOVE').every(row => state.tasks[row.id]?.status === 'Removed')
+    && state.tasks['a-payment']?.status === 'Not permitted by policy';
 }
 export function humanAccess(state) {
   const current = ['sap-view', 'powerbi-fin', 'ar-operator', 'legacy-write'];
-  const rows = decisions.filter(d => d.scope === 'human');
-  return rows.filter(row => current.includes(row.entitlement) ? state.tasks[row.id]?.status !== 'Removed' : state.tasks[row.id]?.status === 'Granted');
+  return decisions.filter(row => row.scope === 'human').filter(row => current.includes(row.entitlement)
+    ? state.tasks[row.id]?.status !== 'Removed' : state.tasks[row.id]?.status === 'Granted');
 }
 export function agentAccess(state) {
-  return decisions.filter(row => row.scope === 'outbound' && (['powerbi-fin', 'finance-reports', 'ar-operator', 'legacy-write'].includes(row.entitlement) ? state.tasks[row.id]?.status !== 'Removed' : state.tasks[row.id]?.status === 'Granted'));
+  const current = ['powerbi-fin', 'finance-reports', 'ar-operator', 'legacy-write'];
+  return decisions.filter(row => row.scope === 'outbound').filter(row => current.includes(row.entitlement)
+    ? state.tasks[row.id]?.status !== 'Removed' : state.tasks[row.id]?.status === 'Granted');
 }
 export function restoreState(storage) {
   try {
     const raw = storage.getItem(STORAGE_KEY);
     if (!raw) return initialState();
     const saved = JSON.parse(raw);
-    if (saved.version !== 1 || !Array.isArray(saved.actions) || saved.actions.length > 10) return initialState();
-    // Restore only supported actions. Derived access and audit records are rebuilt deterministically.
+    if (saved.version !== STATE_VERSION || !Array.isArray(saved.actions) || saved.actions.length > 1000) return initialState();
+    const allowed = ['EVALUATE', 'ACCEPT_ALL', 'DECIDE', 'REVIEW', 'RESOLVE_SOD', 'APPLY_DECISIONS', 'RUN_FULFILLMENT', 'COMPLETE_LEGACY'];
     let replay = initialState();
     for (const action of saved.actions) {
-      if (!action || !['EVALUATE', 'REVIEW', 'RUN_FULFILLMENT', 'COMPLETE_LEGACY'].includes(action.type)) return initialState();
-      if (action.type === 'REVIEW' && (typeof action.note !== 'string' || action.note.length > 3000)) return initialState();
-      if (action.type === 'COMPLETE_LEGACY' && (typeof action.reference !== 'string' || typeof action.note !== 'string' || action.reference.length > 160 || action.note.length > 1500)) return initialState();
+      if (!action || !allowed.includes(action.type)) return initialState();
       const next = demoReducer(replay, action);
       if (next === replay) return initialState();
       replay = next;
