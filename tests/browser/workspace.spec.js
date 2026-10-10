@@ -81,7 +81,7 @@ test('all sidebar pages are populated, read-only, and their rows open details', 
   await expect(page.locator('.attention-card')).toContainText('1 mover event needs your decision');
   await nav(page, 'Applications');
   const logoSources = await verifyLogoCatalog(page);
-  for (const [name, count] of [['My tasks', 6], ['Lifecycle events', 9], ['Access requests', 7], ['Access certifications', 4], ['Policies', 11], ['Roles', 6], ['AI agents', 4], ['Applications', 12], ['Connectors', 9], ['Workday source', 6], ['Audit trail', 5], ['Reports', 3]]) {
+  for (const [name, count] of [['My tasks', 6], ['Lifecycle events', 9], ['Access requests', 7], ['Access certifications', 4], ['Policies', 11], ['Roles', 6], ['AI agents', 4], ['Applications', 12], ['Connectors', 10], ['Workday source', 6], ['Audit trail', 5], ['Reports', 3]]) {
     await nav(page, name);
     const rows = page.locator('.workspace-records tbody tr');
     await expect(rows).toHaveCount(count);

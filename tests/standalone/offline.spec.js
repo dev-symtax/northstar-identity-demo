@@ -104,10 +104,22 @@ test('offline navigation, drawers, profile portraits and application logos load 
   await disableNetworking(context);
   await nav(page, 'Applications');
   const logoSources = await verifyLogoCatalog(page, { offline: true });
+  await expect(page.locator('[data-record-id="ad"]')).toContainText('Connected · API');
+  await expect(page.locator('[data-record-id="ad"]')).not.toContainText(/Manual|Controlled task/);
+  await expect(page.locator('[data-record-id="legacy"]')).toContainText('Manual');
+  await expect(page.locator('[data-record-id="warehouse"]')).toContainText('Manual');
   for (const name of ['My tasks', 'Lifecycle events', 'Access requests', 'Access certifications', 'Policies', 'Roles', 'AI agents', 'Applications', 'Connectors', 'Workday source', 'Audit trail', 'Reports']) {
     await nav(page, name);
     const rows = page.locator('.workspace-records tbody tr');
     expect(await rows.count()).toBeGreaterThan(0);
+    if (name === 'Connectors') {
+      await expect(rows).toHaveCount(10);
+      const ad = page.locator('[data-record-id="CONN-AD"]');
+      await expect(ad).toContainText('Healthy');
+      await expect(ad).toContainText('13 Oct 2026 · 09:00 UTC');
+      await expect(ad.getByRole('img', { name: 'Active Directory logo', exact: true })).toHaveAttribute('src', logoSources.ad);
+    }
+    if (name === 'Reports') await expect(page.locator('[data-record-id="REP-CONN"]')).toContainText('10 connected applications');
     await assertLogoConsistency(page, logoSources, { offline: true });
     await rows.nth(name === 'Lifecycle events' ? 1 : 0).getByRole('button').first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -144,6 +156,9 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await expect(page.locator('.story-steps')).toHaveCount(0);
   await expect(page.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
   await expect(page.locator('.attention-card')).toContainText('1 mover event needs your decision');
+  await nav(page, 'My tasks');
+  await expect(page.getByRole('button', { name: 'Review task', exact: true })).toBeVisible();
+  await expect(page.locator('.workspace-records .section-title')).toContainText('1 open task');
   await recommend(page);
   await expectFullyInViewport(page, page.locator('.exception-panel'));
   await decideAll(page);
@@ -173,6 +188,12 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await page.getByLabel('Show unchanged access').uncheck();
   await expect(page.locator('.provisioning-connected tbody tr')).toHaveCount(7);
   await expect(accessRow(page, 'h-sap')).toHaveCount(0);
+  await nav(page, 'My tasks');
+  await expect(page.locator('.workspace-records .section-title')).toContainText('1 open task');
+  await expect(page.locator('[data-record-id="SN-TASK-004812"]')).toContainText('Task open');
+  await page.getByRole('button', { name: 'Review task', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Provisioning', exact: true })).toBeVisible();
+  await expectFullyInViewport(page, page.locator('.legacy-panel'));
   await nav(page, 'Overview');
   await expect(page.locator('.attention-card')).toContainText('1 manual task needs completion');
   await expect(page.locator('main')).not.toContainText('Mover decisions recorded');
@@ -194,6 +215,11 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await confirmCompletion(page);
   await expect(page.getByRole('button', { name: 'Review mover event', exact: true })).toHaveCount(0);
   await expect(page.locator('.legacy-panel')).toHaveCount(0);
+  await nav(page, 'My tasks');
+  await expect(page.getByRole('button', { name: 'Review task', exact: true })).toHaveCount(0);
+  await expect(page.locator('.workspace-records .section-title')).toContainText('0 open tasks');
+  await expect(page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'My tasks', exact: true }).locator('.nav-count')).toHaveText('0');
+  await expect(page.locator('[data-record-id="SN-TASK-004812"]')).toContainText('Completed');
   await nav(page, 'Overview');
   await expect(page.locator('.attention-card')).toHaveCount(0);
   await expect(page.locator('main')).not.toContainText('Mover decisions recorded');
@@ -240,6 +266,9 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await page.reload();
   await disableNetworking(context);
   await expect(page.locator('.attention-card')).toHaveCount(0);
+  await nav(page, 'My tasks');
+  await expect(page.getByRole('button', { name: 'Review task', exact: true })).toHaveCount(0);
+  await expect(page.locator('.workspace-records .section-title')).toContainText('0 open tasks');
   await nav(page, 'Audit trail');
   await expect(page.getByRole('button', { name: 'Return to lifecycle events', exact: true })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Provisioning', exact: true }).click();
@@ -263,6 +292,9 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await expect(reopened.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
   const resetState = await reopened.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')));
   expect(resetState).toMatchObject({ evaluated: false, applied: false, review: 'pending', fulfillmentStarted: false, accessDecisions: {}, tasks: {}, decisionEvidence: [], fulfillmentEvidence: [], manualFulfillmentEvidence: [], actions: [] });
+  await nav(reopened, 'My tasks');
+  await expect(reopened.getByRole('button', { name: 'Review task', exact: true })).toBeVisible();
+  await expect(reopened.locator('.workspace-records .section-title')).toContainText('1 open task');
   await reopened.reload();
   await disableNetworking(context);
   await nav(reopened, 'Audit trail');

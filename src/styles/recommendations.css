@@ -30,5 +30,7 @@
 .recommendations-screen .recommendation-usage .recommendation-status { align-items: flex-end; margin: 0; }
 .recommendations-screen .recommendation-usage-edit { width: 100%; text-align: left; }
 .recommendation-summary-title { margin: 24px 0 10px; }
+.provisioning-confirmation-applications .agent-name { display: inline-block; position: relative; padding-left: 36px; }
+.provisioning-confirmation-applications .agent-tile { position: absolute; left: 0; top: 50%; transform: translateY(-50%); }
 @media (max-width: 1050px) { .recommendations-screen .decisions-panel { overflow: auto; } .recommendations-screen .decisions-panel table { min-width: 980px; } }
 @media (max-width: 760px) { .recommendations-screen .recommendation-edit-fields { grid-template-columns: 1fr; } .recommendations-screen .recommendation-apply { align-items: flex-start; flex-direction: column; } .recommendations-screen .recommendation-usage-actions { align-items: flex-start; text-align: left; } .recommendations-screen .recommendation-usage-actions .recommendation-controls { justify-content: flex-start; } .recommendations-screen .recommendation-usage .recommendation-status { align-items: flex-start; } }

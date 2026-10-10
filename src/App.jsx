@@ -10,7 +10,7 @@ import GovernanceDecision from './screens/GovernanceDecision.jsx';
 import Fulfillment from './screens/Fulfillment.jsx';
 import Evidence from './screens/Evidence.jsx';
 import WorkspacePage from './screens/WorkspacePage.jsx';
-import { workspacePages } from './data/workspace.js';
+import { actionableTasks, workspacePages } from './data/workspace.js';
 import './styles/product-shell.css';
 
 const steps = [
@@ -91,11 +91,12 @@ export default function App() {
   const stepIndex = screen === 'event' ? 1 : steps.findIndex(step => step.key === screen);
   const selectedNavigation = ['event', 'recommendations', 'provisioning'].includes(screen) ? 'events' : screen;
   const stepsComplete = [true, state.evaluated, Boolean(state.applied), controlComplete(state), controlComplete(state)];
+  const openTaskCount = actionableTasks(state).length;
   return <div className="app-layout">
     <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
       <a className="brand" href="#" aria-label="Northstar Identity" onClick={event => { event.preventDefault(); navigate(0); }}>Northstar <span>Identity</span></a>
       <div className="tenant"><span className="tenant-logo">M</span><span><strong>Meridian Global</strong><small>Enterprise workspace</small></span><ChevronDown size={15} /></div>
-      <nav aria-label="Main navigation">{groups.map(group => <div className="navigation-group" key={group.title}><div className="nav-label">{group.title}</div>{group.items.map(([key, name, Icon]) => <button key={key} className={`nav-item ${selectedNavigation === key ? 'active' : ''}`} aria-label={name} aria-current={selectedNavigation === key ? 'page' : undefined} onClick={() => navigate(key)}><Icon size={19} strokeWidth={1.6} /><span>{name}</span>{key === 'tasks' && <span className="nav-count">{state.review === 'pending' ? 1 : 0}</span>}</button>)}</div>)}</nav>
+      <nav aria-label="Main navigation">{groups.map(group => <div className="navigation-group" key={group.title}><div className="nav-label">{group.title}</div>{group.items.map(([key, name, Icon]) => <button key={key} className={`nav-item ${selectedNavigation === key ? 'active' : ''}`} aria-label={name} aria-current={selectedNavigation === key ? 'page' : undefined} onClick={() => navigate(key)}><Icon size={19} strokeWidth={1.6} /><span>{name}</span>{key === 'tasks' && <span className="nav-count">{openTaskCount}</span>}</button>)}</div>)}</nav>
       <div className="sidebar-footer"><UserProfile location="sidebar-profile" /></div>
     </aside>
     {menuOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}

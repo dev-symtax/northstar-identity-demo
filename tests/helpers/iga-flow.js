@@ -100,6 +100,10 @@ export async function applyDecisions(page) {
   await expect(dialog).toContainText('SAP S/4HANA');
   await expect(dialog).toContainText('Finance Hub');
   await expect(dialog).toContainText('Legacy Finance DB');
+  const agent = dialog.getByRole('img', { name: 'Finance Operations Agent · AI agent', exact: true });
+  await expect(agent).toHaveCount(1);
+  await expect(agent).toBeVisible();
+  expect(await agent.evaluate(element => ({ width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height }))).toEqual({ width: 28, height: 28 });
   await assertProductLanguage(page);
   await dialog.getByRole('button', { name: 'Apply decisions', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Provisioning', exact: true })).toBeVisible();

@@ -7,7 +7,7 @@ export const applications = [
   { id: 'legacy', name: 'Legacy Finance DB', category: 'Finance', owner: 'Martin Keller', mode: 'Controlled task', criticality: 'Critical' },
   { id: 'workday', name: 'Workday', category: 'Human resources', owner: 'HR Operations', mode: 'API', criticality: 'High' },
   { id: 'entra', name: 'Microsoft Entra ID', category: 'Directory', owner: 'Identity Engineering', mode: 'API', criticality: 'Critical' },
-  { id: 'ad', name: 'Active Directory', category: 'Directory', owner: 'Infrastructure', mode: 'Controlled task', criticality: 'High' },
+  { id: 'ad', name: 'Active Directory', category: 'Directory', owner: 'Infrastructure', mode: 'API', criticality: 'High' },
   { id: 'snow', name: 'ServiceNow', category: 'IT service management', owner: 'IT Operations', mode: 'API', criticality: 'Standard' },
   { id: 'salesforce', name: 'Salesforce', category: 'Sales', owner: 'Revenue Operations', mode: 'API', criticality: 'High' },
   { id: 'm365', name: 'Microsoft 365', category: 'Collaboration', owner: 'Digital Workplace', mode: 'API', criticality: 'Standard' },

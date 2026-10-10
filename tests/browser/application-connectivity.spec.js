@@ -1,0 +1,50 @@
+import { test, expect } from '@playwright/test';
+import { nav } from '../helpers/iga-flow.js';
+
+test('Active Directory is connected across applications, directory details, connector health and reports', async ({ page }) => {
+  await page.goto('/');
+  await nav(page, 'Applications');
+  const rows = page.locator('.workspace-records tbody tr');
+  await expect(rows).toHaveCount(12);
+  const manualIds = await rows.evaluateAll(items => items.filter(row => row.cells[2].innerText === 'Manual').map(row => row.dataset.recordId));
+  expect(manualIds).toEqual(['legacy', 'warehouse']);
+  const ad = page.locator('[data-record-id="ad"]');
+  const logo = await ad.getByRole('img', { name: 'Active Directory logo', exact: true }).getAttribute('src');
+  for (const id of ['sap', 'powerbi', 'finance', 'workday', 'entra', 'ad', 'snow', 'salesforce', 'm365', 'legal']) {
+    const row = page.locator(`[data-record-id="${id}"]`);
+    await expect(row.getByRole('cell').nth(2)).toHaveText('Connected · API');
+    await expect(row.locator('.connection-indicator')).toHaveText('Connected');
+  }
+  await ad.getByRole('button').first().click();
+  const application = page.getByRole('dialog', { name: 'Active Directory', exact: true });
+  await expect(application).toContainText('Connected · API');
+  await expect(application).not.toContainText(/Manual|Controlled task/);
+  await expect(application.getByRole('img', { name: 'Active Directory logo', exact: true })).toHaveAttribute('src', logo);
+  await page.keyboard.press('Escape');
+  await nav(page, 'Overview');
+  const directory = page.locator('.directory-section');
+  await directory.getByRole('tab', { name: 'Applications 12', exact: true }).click();
+  const directoryAD = directory.locator('tbody tr').filter({ hasText: 'Active Directory' });
+  await expect(directoryAD).not.toContainText(/Manual|Controlled task/);
+  await directoryAD.getByRole('button').first().click();
+  await expect(application.locator('.notice')).toHaveText('Provisioning method: automated connector');
+  await expect(application.getByRole('img', { name: 'Active Directory logo', exact: true })).toHaveAttribute('src', logo);
+  await page.keyboard.press('Escape');
+  await nav(page, 'Connectors');
+  await expect(page.locator('.workspace-records tbody tr')).toHaveCount(10);
+  const connector = page.locator('[data-record-id="CONN-AD"]');
+  await expect(connector).toContainText('Healthy');
+  await expect(connector).toContainText('13 Oct 2026 · 09:00 UTC');
+  await expect(connector.getByRole('img', { name: 'Active Directory logo', exact: true })).toHaveAttribute('src', logo);
+  await expect(page.locator('[data-record-id="CONN-LEGACY"], [data-record-id="CONN-WAREHOUSE"]')).toHaveCount(0);
+  await connector.getByRole('button').first().click();
+  const details = page.getByRole('dialog', { name: 'Active Directory API', exact: true });
+  for (const value of ['Healthy', '13 Oct 2026 · 09:00 UTC', 'Managed service account', 'Every 15 minutes']) await expect(details).toContainText(value);
+  await expect(details).not.toContainText(/Manual|Controlled task/);
+  await page.keyboard.press('Escape');
+  await nav(page, 'Reports');
+  const report = page.locator('[data-record-id="REP-CONN"]');
+  await expect(report).toContainText('10 connected applications');
+  await report.getByRole('button').first().click();
+  await expect(page.getByRole('dialog', { name: 'Connector availability', exact: true })).toContainText('All 10 registered API connectors reported a successful synchronization.');
+});
