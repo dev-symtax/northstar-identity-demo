@@ -23,7 +23,7 @@ test('confirmation uses the shared agent icon and preserves application alignmen
   await recommend(page);
   for (const changedUsage of [false, true]) {
     if (changedUsage) {
-      await page.getByRole('tab', { name: 'AI agent', exact: true }).click();
+      await page.getByRole('tab', { name: 'AI Agent access', exact: true }).click();
       await changeRow(page, 'a-inbound', 'Remove', 'Agent usage is temporarily suspended.');
     }
     await page.getByRole('button', { name: 'Apply decisions', exact: true }).first().click();
@@ -114,11 +114,11 @@ test('My tasks has no outstanding action after provisioning when no manual task 
   await recommend(page);
   await decideAll(page);
   for (const id of ['h-legacy', 'a-legacy']) {
-    await page.getByRole('tab', { name: id.startsWith('h-') ? 'Human access' : 'AI agent', exact: true }).click();
+    await page.getByRole('tab', { name: id.startsWith('h-') ? 'Human access' : 'AI Agent access', exact: true }).click();
     await changeRow(page, id, 'Keep', 'Legacy access remains an approved business requirement.');
   }
   await applyDecisions(page);
-  await page.getByRole('button', { name: 'Provision changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Run scheduled provisioning', exact: true }).click();
   await nav(page, 'My tasks');
   await expectTaskState(page, 0);
   await expect(page.locator('.workspace-records tbody tr')).toHaveCount(6);

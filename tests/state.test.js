@@ -4,7 +4,7 @@ import { decisions, identities, applications, entitlements, agents, policies } f
 import { SCENARIO, REVIEWER } from '../src/data/scenario.js';
 import {
   initialState, demoReducer as reduce, getAccessDecision, actionLabel, canApplyDecisions,
-  decisionSummary, fulfillmentStatus, legacyTaskRows, humanAccess, agentAccess,
+  decisionSummary, fulfillmentStatus, legacyTaskRows, humanAccess, agentAccess, isUndecidedRecommendation,
   readiness, connectedChangeSummary, controlComplete, restoreState, STORAGE_KEY, lifecycleStatus, sarahResumeTarget,
 } from '../src/demo/state.js';
 
@@ -108,6 +108,62 @@ test('bulk acceptance preserves already changed choices and their comments', () 
   assert.equal(decision(state, 'h-budget').decidedAction, 'DO_NOT_GRANT');
   assert.equal(decision(state, 'h-budget').comment, 'Retain approval with the controller.');
   assert.equal(decisionSummary(state).decided, 15);
+});
+
+for (const scope of ['human', 'agent']) {
+  test(`bulk acceptance preserves all recorded ${scope} decision sources, rationale and evidence through replay and provisioning`, () => {
+    const prefix = scope === 'human' ? 'h' : 'a';
+    let state = evaluate(initialState());
+    const dashboard = `${prefix}-dashboard`;
+    const retained = scope === 'human' ? 'h-bi' : 'a-reports';
+    const accepted = scope === 'human' ? 'h-sap' : 'a-bi';
+    const legacy = `${prefix}-legacy`;
+    for (const action of [
+      { rowId: dashboard, action: 'DO_NOT_GRANT', comment: 'Dashboard access is not required.', decisionSource: 'rejected-recommendation' },
+      { rowId: retained, action: 'KEEP', comment: 'Read-only reporting remains required.', decisionSource: 'manual-override' },
+      { rowId: legacy, action: 'KEEP', comment: 'Legacy access remains required.', decisionSource: 'manual-override' },
+      { rowId: accepted, action: 'KEEP', comment: '', decisionSource: 'accepted-recommendation' },
+    ]) state = reduce(state, { type: 'DECIDE', ...action });
+    state = approve(state);
+    const previous = state;
+    const undecided = decisions.filter(item => (scope === 'human' ? item.scope === 'human' : item.scope !== 'human')
+      && isUndecidedRecommendation(decision(state, item.id)));
+    const bulk = accept(state, scope);
+    assert.equal(bulk.decisionEvidence.length, previous.decisionEvidence.length + undecided.length);
+    for (const id of [dashboard, retained, legacy, accepted, 'h-payment', 'a-payment']) {
+      assert.equal(decision(bulk, id), decision(previous, id));
+      assert.deepEqual(bulk.decisionEvidence.filter(record => record.rowId === id), previous.decisionEvidence.filter(record => record.rowId === id));
+      assert.equal(isUndecidedRecommendation(decision(bulk, id)), false);
+    }
+    for (const item of undecided) assert.equal(decision(bulk, item.id).decisionSource, 'accepted-recommendation');
+    assert.equal(accept(bulk, scope), bulk);
+    assert.deepEqual(restore(bulk), bulk);
+    const provisioned = run(apply(acceptBoth(bulk)));
+    assert.equal(provisioned.tasks[dashboard].status, 'Not granted');
+    assert.equal(provisioned.tasks[legacy].status, 'Retained');
+    assert.equal(decision(provisioned, dashboard).decisionSource, 'rejected-recommendation');
+    assert.equal(decision(provisioned, retained).decisionSource, 'manual-override');
+    assert.equal(decision(provisioned, 'a-payment').decisionSource, 'policy-locked');
+    assert.equal(decision(provisioned, 'h-payment').decisionSource, 'high-risk-review');
+    assert.deepEqual(restore(provisioned), provisioned);
+    assert.deepEqual(reduce(provisioned, { type: 'RESET' }), initialState());
+  });
+}
+
+test('existing saved actions recover provenance without trusting stored derived decision fields', () => {
+  let state = evaluate(initialState());
+  state = decide(state, 'h-dashboard', 'DO_NOT_GRANT', 'Dashboard is not required.');
+  state = decide(state, 'a-reports', 'KEEP', 'Read-only reporting remains approved.');
+  state = decide(state, 'h-sap', 'KEEP');
+  const saved = JSON.parse(JSON.stringify(state));
+  for (const model of Object.values(saved.accessDecisions)) delete model.decisionSource;
+  const restored = restore(saved);
+  assert.equal(decision(restored, 'h-dashboard').decisionSource, 'manual-override');
+  assert.equal(decision(restored, 'a-reports').decisionSource, 'manual-override');
+  assert.equal(decision(restored, 'h-sap').decisionSource, 'accepted-recommendation');
+  const both = acceptBoth(restored);
+  for (const id of ['h-dashboard', 'a-reports', 'h-sap']) assert.deepEqual(decision(both, id), decision(restored, id));
+  assert.equal(decision(restore(saved), 'a-payment').decisionSource, 'policy-locked');
 });
 
 test('approval requires a comment, remains editable before apply and grants nothing itself', () => {

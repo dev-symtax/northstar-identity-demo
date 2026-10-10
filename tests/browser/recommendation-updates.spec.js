@@ -74,7 +74,7 @@ test('recommendation spacing, agent action alignment and audit identity icons ar
     for (const gap of gaps) expect(gap).toEqual({ gap: 12, width: 28, height: 28 });
   };
   await checkResourceSpacing();
-  await page.getByRole('tab', { name: 'AI agent', exact: true }).click();
+  await page.getByRole('tab', { name: 'AI Agent access', exact: true }).click();
   await checkResourceSpacing();
   const usage = accessRow(page, 'a-inbound');
   await expect(usage).not.toContainText('Recommended');
@@ -96,7 +96,7 @@ test('recommendation spacing, agent action alignment and audit identity icons ar
   await assertAcceptedUsage();
   await page.reload();
   await recommend(page);
-  await page.getByRole('tab', { name: 'AI agent', exact: true }).click();
+  await page.getByRole('tab', { name: 'AI Agent access', exact: true }).click();
   await assertAcceptedUsage();
   await changeRow(page, 'a-inbound', 'Remove', 'Agent usage is temporarily suspended.');
   await expect(usage).toContainText('Changed from Keep to Remove');
@@ -123,7 +123,7 @@ test('recommendation spacing, agent action alignment and audit identity icons ar
   await assertProductLanguage(page);
   await page.keyboard.press('Shift+R');
   await recommend(page);
-  await page.getByRole('tab', { name: 'AI agent', exact: true }).click();
+  await page.getByRole('tab', { name: 'AI Agent access', exact: true }).click();
   await expect(usage.getByText('Keep', { exact: true })).toHaveCount(1);
   await expect(usage.getByRole('button', { name: 'Accept', exact: true })).toBeEnabled();
   expect((await stored(page)).accessDecisions['a-inbound']).toMatchObject({ status: 'Recommended', decidedAction: null });

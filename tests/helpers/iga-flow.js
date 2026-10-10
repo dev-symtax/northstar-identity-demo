@@ -54,7 +54,7 @@ export function accessRow(page, id) {
 }
 
 export async function acceptAll(page, scope) {
-  await page.getByRole('tab', { name: scope === 'human' ? 'Human access' : 'AI agent', exact: true }).click();
+  await page.getByRole('tab', { name: scope === 'human' ? 'Human access' : 'AI Agent access', exact: true }).click();
   await page.getByRole('button', { name: 'Accept all recommendations', exact: true }).click();
 }
 
@@ -107,11 +107,14 @@ export async function applyDecisions(page) {
   await assertProductLanguage(page);
   await dialog.getByRole('button', { name: 'Apply decisions', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Provisioning', exact: true })).toBeVisible();
+  await expect(page.locator('.fulfillment-banner h2')).toHaveText('Changes scheduled for Monday, 19 October 2026.');
+  await expect(page.locator('.fulfillment-banner p')).toHaveText('No access has changed yet.');
+  await expect(page.getByRole('button', { name: 'Run scheduled provisioning', exact: true })).toBeEnabled();
   await assertProductLanguage(page);
 }
 
 export async function provision(page) {
-  await page.getByRole('button', { name: 'Provision changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Run scheduled provisioning', exact: true }).click();
   await expect(page.locator('.provisioning-toast')).toHaveText(/^\d+ of \d+ connected changes provisioned successfully\. 1 manual task remains\.$/);
   await expectFullyInViewport(page, page.locator('.legacy-panel'));
   await expect(page.locator('.legacy-panel')).toBeVisible();

@@ -14,7 +14,7 @@ for (const changes of [7, 6]) {
     await expect(connected).toContainText(`0 of ${changes} changes provisioned`);
     await page.clock.install({ time: new Date('2026-10-13T09:00:00Z') });
     await page.clock.pauseAt(new Date('2026-10-13T09:00:01Z'));
-    await page.getByRole('button', { name: 'Provision changes', exact: true }).click();
+    await page.getByRole('button', { name: 'Run scheduled provisioning', exact: true }).click();
     await expect(connected).toContainText(`${changes} of ${changes} changes provisioned`);
     await expect(summary).toContainText(`${changes} of ${changes}`);
     await expect(page.locator('.provisioning-toast')).toHaveText(`${changes} of ${changes} connected changes provisioned successfully. 1 manual task remains.`);
@@ -45,7 +45,7 @@ for (const changes of [7, 6]) {
     await page.locator('[data-record-id="WD-MOV-2026-0842"]').getByRole('button').first().click();
     await expectFullyInViewport(page, manual);
     await expect(page.locator('.provisioning-toast')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Provision changes', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Run scheduled provisioning', exact: true })).toHaveCount(0);
     await expect(page.getByLabel('Show unchanged access')).not.toBeChecked();
     await expect(connected.locator('tbody tr')).toHaveCount(changes);
     await expect(connected).toContainText(`${changes} of ${changes} changes provisioned`);
@@ -59,7 +59,7 @@ test('leaving provisioning during success cancels the pending manual-task scroll
   await applyDecisions(page);
   await page.clock.install({ time: new Date('2026-10-13T09:00:00Z') });
   await page.clock.pauseAt(new Date('2026-10-13T09:00:01Z'));
-  await page.getByRole('button', { name: 'Provision changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Run scheduled provisioning', exact: true }).click();
   await expect(page.locator('.provisioning-toast')).toBeVisible();
   await nav(page, 'Lifecycle events');
   await page.clock.runFor(1000);

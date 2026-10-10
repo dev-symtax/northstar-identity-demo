@@ -24,7 +24,7 @@ test('full approval and provisioning path preserves audit history, persistence a
   await page.getByRole('tab', { name: 'Human access', exact: true }).click();
   await expect(page.locator('.exception-panel')).toContainText('Approved · activates after Accounts Receivable Operator is removed');
   await page.getByRole('button', { name: 'View agent permissions', exact: true }).click();
-  await expect(page.getByRole('tab', { name: 'AI agent', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'AI Agent access', exact: true })).toHaveAttribute('aria-selected', 'true');
   await expect(accessRow(page, 'a-payment')).toContainText('Not permitted by policy');
   await expect(accessRow(page, 'a-payment')).toHaveClass(/agent-block-highlight/);
   await expectFullyInViewport(page, accessRow(page, 'a-payment'));
@@ -100,7 +100,7 @@ test('Apply decisions stays disabled until both scopes and the policy violation 
   await expect(accessRow(page, 'a-payment')).toContainText('Policy-locked');
   await expect(apply).toBeDisabled();
   await nav(page, 'Provisioning');
-  await expect(page.getByRole('button', { name: 'Provision changes', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Run scheduled provisioning', exact: true })).toHaveCount(0);
   await nav(page, 'Access recommendations');
   await decidePayment(page);
   await expect(apply).toBeEnabled();
@@ -186,7 +186,7 @@ for (const resolution of ['Remove Accounts Receivable Operator', 'Deny Payment A
 test('agent payment approval is policy-locked and attempts to change it do not mutate the decision', async ({ page }) => {
   await page.goto('/');
   await recommend(page);
-  await page.getByRole('tab', { name: 'AI agent', exact: true }).click();
+  await page.getByRole('tab', { name: 'AI Agent access', exact: true }).click();
   const row = accessRow(page, 'a-payment');
   await expect(row).toContainText('Policy-locked');
   await expect(row).toContainText('Not permitted by policy');
@@ -250,7 +250,7 @@ test('dates, names, policies, recommendation counts and hidden keyboard controls
   }
   await expectCounts([3, 3, 2, 1, 0]);
   await expect(page.locator('main')).toContainText('Decided 0 of 9');
-  await page.getByRole('tab', { name: 'AI agent', exact: true }).click();
+  await page.getByRole('tab', { name: 'AI Agent access', exact: true }).click();
   await expectCounts([3, 1, 2, 0, 1]);
   await expect(page.locator('main')).toContainText('Decided 1 of 7');
   await decideAll(page);

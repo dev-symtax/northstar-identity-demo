@@ -3,7 +3,7 @@ import { ArrowRight, Bot, Check, ChevronRight, FileKey2, LockKeyhole, ShieldAler
 import { decisions, policies, resourceName, subjectName, entitlementById, applicationById } from '../data/catalog.js';
 import { ApplicationIcon, ApplicationName } from '../components/ApplicationIcon.jsx';
 import { REVIEWER, SCENARIO } from '../data/scenario.js';
-import { actionLabel, canApplyDecisions, fulfillmentStatus, getAccessDecision } from '../demo/state.js';
+import { actionLabel, canApplyDecisions, fulfillmentStatus, getAccessDecision, isUndecidedRecommendation } from '../demo/state.js';
 import { Actor, AgentName, Avatar, Badge, Button, Drawer, Empty, Field, Notice, PageTitle, SectionTitle, formatTime } from '../components/UI.jsx';
 import { useStepFocus } from '../components/useStepFocus.js';
 import '../styles/recommendations.css';
@@ -28,7 +28,8 @@ function isDecided(access) {
 function RowControls({ row, access, applied, onAccept, onEdit, onReview, onLocked }) {
   if (access.status === 'Policy-locked') return <button className="policy-lock-control" onClick={onLocked}><LockKeyhole size={18} /><span>Locked by policy · View policy</span></button>;
   if (access.recommendedAction === 'REVIEW') return <Button variant="secondary" disabled={applied} onClick={onReview}>{access.decidedAction ? 'Change' : 'Review'}</Button>;
-  return <div className="recommendation-controls" aria-label={`Actions for ${resourceName(row)}`}><Button variant="quiet" disabled={applied || access.status === 'Accepted'} onClick={() => onAccept(row)}>Accept</Button><Button variant="secondary" disabled={applied} onClick={() => onEdit(row, false)}>Change</Button><Button variant="secondary" disabled={applied} onClick={() => onEdit(row, true)}>Reject</Button></div>;
+  const rejected = Boolean(access.decidedAction) && access.decidedAction !== access.recommendedAction;
+  return <div className="recommendation-controls" aria-label={`Actions for ${resourceName(row)}`}><Button variant="quiet" aria-pressed={access.decisionSource === 'accepted-recommendation'} disabled={applied || access.status === 'Accepted'} onClick={() => onAccept(row)}>Accept</Button><Button variant="secondary" aria-pressed={access.decisionSource === 'manual-override'} disabled={applied} onClick={() => onEdit(row, false)}>Change</Button><Button variant={rejected ? 'danger' : 'secondary'} aria-pressed={rejected} disabled={applied} onClick={() => onEdit(row, true)}>Reject</Button></div>;
 }
 
 function DecisionStatus({ access, hideRecommended = false, hideAccepted = false }) {
@@ -123,27 +124,28 @@ export default function GovernanceDecision({ state, dispatch, navigate }) {
   }
   function accept(row) {
     const access = getAccessDecision(row, state);
-    dispatch({ type: 'DECIDE', rowId: row.id, action: access.recommendedAction, comment: '' });
+    dispatch({ type: 'DECIDE', rowId: row.id, action: access.recommendedAction, comment: '', decisionSource: 'accepted-recommendation' });
     setToast(`Decision recorded for ${resourceName(row)}.`);
   }
   function acceptAll() {
     const count = scopeRows.filter(row => {
       const access = getAccessDecision(row, state);
-      return !isDecided(access) && !['REVIEW', 'NOT_PERMITTED'].includes(access.recommendedAction);
+      return isUndecidedRecommendation(access);
     }).length;
     dispatch({ type: 'ACCEPT_ALL', scope: tab });
     setToast(`${count} recommendation${count === 1 ? '' : 's'} accepted.`);
   }
   function openEdit(row, deny) {
     const access = getAccessDecision(row, state);
-    setEdit({ row, action: deny ? oppositeAction(access) : access.decidedAction || access.recommendedAction, comment: '' });
+    setEdit({ row, action: deny ? oppositeAction(access) : access.decidedAction || access.recommendedAction, comment: access.comment, reject: deny });
     setEditError(''); setPendingSod(false);
   }
   function saveEdit(event) {
     event.preventDefault();
     if (!edit.comment.trim()) { setEditError('Enter a comment for this decision.'); return; }
     if (edit.row.id === 'h-ar' && edit.action === 'KEEP' && state.review !== 'rejected') { setPendingSod(true); setEditError(''); return; }
-    dispatch({ type: 'DECIDE', rowId: edit.row.id, action: edit.action, comment: edit.comment.trim() });
+    const decisionSource = edit.reject && edit.action !== edit.row.recommendedAction ? 'rejected-recommendation' : 'manual-override';
+    dispatch({ type: 'DECIDE', rowId: edit.row.id, action: edit.action, comment: edit.comment.trim(), decisionSource });
     setToast(`Decision recorded for ${resourceName(edit.row)}.`);
     setEdit(null); setEditError('');
   }
@@ -194,7 +196,7 @@ export default function GovernanceDecision({ state, dispatch, navigate }) {
     <div className="decision-summary">{ACTIONS.map(action => <div key={action} className={counts[action].total === 0 ? 'zero-count' : ''}><Badge tone={counts[action].total === 0 ? 'neutral' : decisionTone(action)} dot={false}>{action === 'NOT_PERMITTED' ? 'Not permitted' : actionLabel(action)}</Badge><strong>{counts[action].total}</strong><span>Decided {counts[action].decided} of {counts[action].total}</span></div>)}</div>
     {state.review !== 'pending' && <div ref={confirmationRef} role="status" className="recommendation-confirmation"><Notice><strong>Decision recorded for SAP Payment Approval</strong><div className="recommendation-confirmation-agent"><span>Agent: Not permitted by policy</span><button className="text-link" onClick={viewAgentPermissions}>View agent permissions<ChevronRight size={14} /></button></div></Notice></div>}
     {state.applied && <Notice><strong>Decisions applied.</strong> Changes are scheduled for {SCENARIO.effectiveDate}.<button className="text-link" onClick={() => navigate(3)}>View provisioning<ChevronRight size={14} /></button></Notice>}
-    <div className="decision-tabs tabs" role="tablist" aria-label="Access identity"><button role="tab" aria-label="Human access" aria-selected={tab === 'human'} className={tab === 'human' ? 'active' : ''} onClick={() => switchTab('human')}><Users size={17} />Human access<span>{decisions.filter(row => row.scope === 'human').length}</span></button><button role="tab" aria-label="AI agent" aria-selected={tab === 'agent'} className={tab === 'agent' ? 'active' : ''} onClick={() => switchTab('agent')}><Bot size={17} />AI agent<span>{decisions.filter(row => row.scope !== 'human').length}</span></button></div>
+    <div className="decision-tabs tabs" role="tablist" aria-label="Access identity"><button role="tab" aria-label="Human access" aria-selected={tab === 'human'} className={tab === 'human' ? 'active' : ''} onClick={() => switchTab('human')}><Users size={17} />Human access<span>{decisions.filter(row => row.scope === 'human').length}</span></button><button role="tab" aria-label="AI Agent access" aria-selected={tab === 'agent'} className={tab === 'agent' ? 'active' : ''} onClick={() => switchTab('agent')}><Bot size={17} />AI Agent access<span>{decisions.filter(row => row.scope !== 'human').length}</span></button></div>
     <div className="recommendation-toolbar"><span>Decided {decidedCount} of {scopeRows.length}</span><Button disabled={state.applied} onClick={acceptAll}>Accept all recommendations</Button></div>
     {toast && <div role="status" className="recommendation-toast">{toast}</div>}
     {tab === 'agent' && <section className="panel inbound-panel recommendation-usage" data-row-id={agentUsage.id}><div><span className="eyebrow">AI AGENT · OWNER: SARAH MILLER</span><h2>Agent usage</h2><div className="relationship-path"><Avatar name="Sarah Miller" /><strong>Sarah Miller</strong><ArrowRight size={18} /><Bot size={22} /><strong>Finance Operations Agent</strong></div><p>Who may use the agent · POL-AI-301</p></div><div className="recommendation-usage-actions"><Badge tone="green">{actionLabel(getAccessDecision(agentUsage, state).recommendedAction)}</Badge><DecisionStatus access={getAccessDecision(agentUsage, state)} hideRecommended hideAccepted />{controls(agentUsage)}</div>{edit?.row.id === agentUsage.id && <div className="recommendation-usage-edit">{editForm(agentUsage)}</div>}</section>}

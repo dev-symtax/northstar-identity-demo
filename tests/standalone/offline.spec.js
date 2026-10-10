@@ -2,6 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 import { assertLogoConsistency, verifyLogoCatalog } from '../helpers/application-logos.js';
+import { exerciseRecommendationOverrides } from '../helpers/recommendation-overrides.js';
 import {
   EDIT_COMMENT, REVIEW_COMMENT, COMPLETION_REFERENCE, accessRow, applyDecisions,
   assertKeyAuditRecords, assertProductLanguage, changeRow, confirmCompletion,
@@ -330,6 +331,19 @@ test('offline Budget Approval edit is carried into the scheduled changes and aud
   const bundle = await downloadAudit(page);
   expect(bundle.decisionEvidence.filter(record => record.rowId === 'h-budget').at(-1)).toMatchObject({ recommendedAction: 'GRANT', decidedAction: 'DO_NOT_GRANT', status: 'Changed', comment: EDIT_COMMENT });
   expect((bundle.provisioningEvidence || bundle.fulfillmentEvidence).find(record => record.rowId === 'h-budget').status).toBe('Not granted');
+  expect(await page.evaluate(() => navigator.onLine)).toBe(false);
+  expect(unexpected).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('offline bulk acceptance preserves manual human and agent selections through the full lifecycle', async ({ page, context }) => {
+  const unexpected = observeRequests(page);
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await supplyOfflineDocument(context);
+  await page.goto(appUrl);
+  await disableNetworking(context);
+  await exerciseRecommendationOverrides(page, 'Change', () => disableNetworking(context));
   expect(await page.evaluate(() => navigator.onLine)).toBe(false);
   expect(unexpected).toEqual([]);
   expect(errors).toEqual([]);

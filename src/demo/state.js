@@ -18,11 +18,15 @@ function recommendation(row) {
   return {
     recommendedAction: row.recommendedAction, policyId: row.policyId, reason: row.reason,
     decidedAction: null, status: row.recommendedAction === 'REVIEW' ? 'Needs review' : 'Recommended',
-    decidedBy: null, decidedAt: null, comment: '',
+    decidedBy: null, decidedAt: null, comment: '', decisionSource: 'undecided',
   };
 }
 export function getAccessDecision(row, state) {
   return state.accessDecisions?.[row.id] || recommendation(row);
+}
+export function isUndecidedRecommendation(access) {
+  return access.decisionSource === 'undecided' && access.decidedAction === null
+    && !['REVIEW', 'NOT_PERMITTED'].includes(access.recommendedAction);
 }
 export function actionLabel(action) {
   return { KEEP: 'Keep', GRANT: 'Grant', REMOVE: 'Remove', REVIEW: 'Review',
@@ -51,11 +55,11 @@ function recordLifecycleCompletion(state, timestamp) {
     ...(state.fulfillmentEvidence.some(record => record.task === 'SN-TASK-004812') ? { task: 'SN-TASK-004812' } : {}),
   }] };
 }
-function decisionFor(row, action, comment = '') {
+function decisionFor(row, action, comment = '', decisionSource = action === row.recommendedAction ? 'accepted-recommendation' : 'manual-override') {
   return {
     ...recommendation(row), decidedAction: action,
     status: row.recommendedAction === 'REVIEW' || action === row.recommendedAction ? 'Accepted' : 'Changed',
-    decidedBy: REVIEWER_LABEL, decidedAt: SCENARIO.approvalAt, comment,
+    decidedBy: REVIEWER_LABEL, decidedAt: SCENARIO.approvalAt, comment, decisionSource,
   };
 }
 function recordDecisions(state, changes, extra = {}) {
@@ -74,7 +78,7 @@ function reviewDecision(state, result, note) {
   if (!editable(state) || !['approved', 'rejected'].includes(result) || !validComment(note, true)) return state;
   if (result === 'approved' && getAccessDecision(decisions.find(row => row.id === 'h-ar'), state).decidedAction === 'KEEP') return state;
   const row = decisions.find(item => item.id === 'h-payment');
-  const model = decisionFor(row, result === 'approved' ? 'GRANT' : 'DO_NOT_GRANT', note.trim());
+  const model = decisionFor(row, result === 'approved' ? 'GRANT' : 'DO_NOT_GRANT', note.trim(), 'high-risk-review');
   const previous = getAccessDecision(row, state);
   if (state.review === result && previous.comment === model.comment) return state;
   return recordDecisions(state, [[row, model]], { review: result, reviewNote: model.comment });
@@ -110,7 +114,7 @@ function reduceState(state, action) {
     const accessDecisions = Object.fromEntries(decisions.map(row => {
       const model = recommendation(row);
       if (row.recommendedAction === 'NOT_PERMITTED') Object.assign(model, {
-        decidedAction: 'NOT_PERMITTED', status: 'Policy-locked', decidedBy: SYSTEM_ACTOR, decidedAt: SCENARIO.receivedAt,
+        decidedAction: 'NOT_PERMITTED', status: 'Policy-locked', decidedBy: SYSTEM_ACTOR, decidedAt: SCENARIO.receivedAt, decisionSource: 'policy-locked',
       });
       return [row.id, model];
     }));
@@ -120,7 +124,7 @@ function reduceState(state, action) {
   if (action.type === 'ACCEPT_ALL') {
     if (!editable(state) || !['human', 'agent'].includes(action.scope)) return state;
     const rows = decisions.filter(row => (action.scope === 'human' ? row.scope === 'human' : row.scope !== 'human')
-      && !['REVIEW', 'NOT_PERMITTED'].includes(row.recommendedAction) && !getAccessDecision(row, state).decidedAction);
+      && isUndecidedRecommendation(getAccessDecision(row, state)));
     return rows.length ? recordDecisions(state, rows.map(row => [row, decisionFor(row, row.recommendedAction)])) : state;
   }
   if (action.type === 'DECIDE') {
@@ -132,8 +136,13 @@ function reduceState(state, action) {
     if (!allowed.includes(action.action)) return state;
     if (row.id === 'h-ar' && action.action === 'KEEP' && state.review !== 'rejected') return state;
     const comment = action.comment ?? '';
-    if (!validComment(comment, action.action !== row.recommendedAction)) return state;
-    const model = decisionFor(row, action.action, comment.trim());
+    if (!validComment(comment)) return state;
+    const decisionSource = action.decisionSource ?? (action.action === row.recommendedAction && !comment.trim() ? 'accepted-recommendation' : 'manual-override');
+    if (!['accepted-recommendation', 'manual-override', 'rejected-recommendation'].includes(decisionSource)
+      || (decisionSource === 'accepted-recommendation' && action.action !== row.recommendedAction)
+      || (decisionSource === 'rejected-recommendation' && action.action === row.recommendedAction)) return state;
+    if (!validComment(comment, decisionSource !== 'accepted-recommendation')) return state;
+    const model = decisionFor(row, action.action, comment.trim(), decisionSource);
     const previous = getAccessDecision(row, state);
     if (previous.decidedAction === model.decidedAction && previous.comment === model.comment) return state;
     return recordDecisions(state, [[row, model]]);
@@ -145,12 +154,12 @@ function reduceState(state, action) {
     const comment = action.comment ?? '';
     if (!validComment(comment, action.resolution === 'deny-payment')) return state;
     if (action.resolution === 'remove-ar') {
-      const model = decisionFor(ar, 'REMOVE', comment.trim());
+      const model = decisionFor(ar, 'REMOVE', comment.trim(), 'manual-override');
       const previous = getAccessDecision(ar, state);
       return previous.decidedAction === 'REMOVE' && previous.comment === model.comment ? state : recordDecisions(state, [[ar, model]]);
     }
     const payment = decisions.find(row => row.id === 'h-payment');
-    return recordDecisions(state, [[ar, decisionFor(ar, 'KEEP', comment.trim())], [payment, decisionFor(payment, 'DO_NOT_GRANT', comment.trim())]], {
+    return recordDecisions(state, [[ar, decisionFor(ar, 'KEEP', comment.trim(), 'manual-override')], [payment, decisionFor(payment, 'DO_NOT_GRANT', comment.trim(), 'high-risk-review')]], {
       review: 'rejected', reviewNote: comment.trim(),
     });
   }
@@ -222,6 +231,7 @@ export function demoReducer(state, action) {
   const savedAction = { type: action.type };
   if (action.type === 'ACCEPT_ALL') savedAction.scope = action.scope;
   if (action.type === 'DECIDE') Object.assign(savedAction, { rowId: action.rowId, action: action.action, comment: (action.comment ?? '').trim() });
+  if (action.type === 'DECIDE' && action.decisionSource !== undefined) savedAction.decisionSource = action.decisionSource;
   if (action.type === 'REVIEW') Object.assign(savedAction, { result: action.result, note: action.note.trim() });
   if (action.type === 'RESOLVE_SOD') Object.assign(savedAction, { resolution: action.resolution, comment: (action.comment ?? '').trim() });
   if (action.type === 'COMPLETE_LEGACY') Object.assign(savedAction, { reference: action.reference.trim(), note: action.note.trim() });

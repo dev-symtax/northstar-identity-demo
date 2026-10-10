@@ -78,12 +78,12 @@ test('Overview also clears attention when all selected changes complete without 
   await page.goto('/');
   await recommend(page);
   for (const id of ['h-legacy', 'a-legacy']) {
-    await page.getByRole('tab', { name: id.startsWith('h-') ? 'Human access' : 'AI agent', exact: true }).click();
+    await page.getByRole('tab', { name: id.startsWith('h-') ? 'Human access' : 'AI Agent access', exact: true }).click();
     await changeRow(page, id, 'Keep', 'Legacy access remains an approved business requirement.');
   }
   await decideAll(page);
   await applyDecisions(page);
-  await page.getByRole('button', { name: 'Provision changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Run scheduled provisioning', exact: true }).click();
   await expect(page.locator('.legacy-panel')).toContainText('Not required');
   await expect(page.locator('.provisioning-toast')).toHaveText('7 of 7 connected changes provisioned successfully. No manual tasks remain.');
   await nav(page, 'Lifecycle events');
