@@ -33,13 +33,13 @@ test('full approval and provisioning path preserves audit history, persistence a
   expect(unprovisioned.tasks).toEqual({});
   expect(unprovisioned.fulfillmentEvidence).toEqual([]);
   await applyDecisions(page);
-  await expect(page.locator('.provisioning-connected')).toContainText('0 of 6 changes provisioned');
+  await expect(page.locator('.provisioning-connected')).toContainText('0 of 7 changes provisioned');
   await expandConnected(page);
   await expect(accessRow(page, 'h-payment')).toContainText('Scheduled');
   await provision(page);
   await expectFullyInViewport(page, page.locator('.legacy-panel'));
   await expect(page.locator('main')).toContainText('Role access provisioned. 1 manual task open.');
-  await expect(page.locator('.provisioning-connected')).toContainText('6 of 6 changes provisioned');
+  await expect(page.locator('.provisioning-connected')).toContainText('7 of 7 changes provisioned');
   await expandConnected(page);
   await expect(accessRow(page, 'h-payment')).toContainText('Granted');
   await confirmCompletion(page);
@@ -57,7 +57,7 @@ test('full approval and provisioning path preserves audit history, persistence a
   expect(bundle.effectiveDate).toBe('2026-10-19');
   const decisions = bundle.decisionEvidence;
   const provisioning = bundle.provisioningEvidence || bundle.fulfillmentEvidence;
-  expect(decisions.length).toBeGreaterThanOrEqual(14);
+  expect(decisions.length).toBeGreaterThanOrEqual(16);
   for (const record of decisions) {
     expect(record.eventId).toBe('WD-MOV-2026-0842');
     expect(record.timestamp).toMatch(/^2026-10-13T09:0[01]:00\.000Z$/);
@@ -127,16 +127,16 @@ test('Budget Approval override requires a comment and is reflected in provisioni
   await decideAll(page);
   expect((await storedState(page)).accessDecisions['h-budget']).toMatchObject({ recommendedAction: 'GRANT', decidedAction: 'DO_NOT_GRANT', status: 'Changed', comment: EDIT_COMMENT });
   await applyDecisions(page);
-  await expect(page.locator('.provisioning-connected')).toContainText('0 of 5 changes provisioned');
+  await expect(page.locator('.provisioning-connected')).toContainText('0 of 6 changes provisioned');
   await expandConnected(page);
   await expect(accessRow(page, 'h-budget')).toContainText('Do not grant');
   await provision(page);
   await expandConnected(page);
   await expect(accessRow(page, 'h-budget')).toContainText('Not granted');
-  await expect(page.locator('.provisioning-connected')).toContainText('5 of 5 changes provisioned');
+  await expect(page.locator('.provisioning-connected')).toContainText('6 of 6 changes provisioned');
   await expect(accessRow(page, 'h-budget').getByRole('button', { name: `Review comment: ${EDIT_COMMENT}` })).toBeVisible();
   await nav(page, 'Audit trail');
-  await page.getByRole('button', { name: 'All (14)', exact: true }).click();
+  await page.getByRole('button', { name: 'All (16)', exact: true }).click();
   await expect(accessRow(page, 'h-budget')).toContainText('Changed');
   await expect(accessRow(page, 'h-budget')).toContainText('Do not grant');
   await expect(accessRow(page, 'h-budget')).toContainText(EDIT_COMMENT);
@@ -209,7 +209,7 @@ test('keeping Legacy Finance DB Write updates the manual task scope to the agent
 
 test('dates, names, policies, recommendation counts and hidden keyboard controls stay consistent', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('.effective-date')).toContainText('Monday, 19 October 2026');
+  await expect(page.locator('.story-steps')).toHaveCount(0);
   await expect(page.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
   await expect(page.locator('.user-footer')).toContainText('Patrick Sena');
   await expect(page.locator('.user-footer')).toContainText('Head of Identity Governance');
@@ -237,8 +237,8 @@ test('dates, names, policies, recommendation counts and hidden keyboard controls
       if (counts[index] === 0) await expect(tiles.nth(index)).toHaveClass(/zero-count/);
     }
   }
-  await expectCounts([2, 2, 2, 1, 0]);
-  await expect(page.locator('main')).toContainText('Decided 0 of 7');
+  await expectCounts([3, 3, 2, 1, 0]);
+  await expect(page.locator('main')).toContainText('Decided 0 of 9');
   await page.getByRole('tab', { name: 'AI agent', exact: true }).click();
   await expectCounts([3, 1, 2, 0, 1]);
   await expect(page.locator('main')).toContainText('Decided 1 of 7');

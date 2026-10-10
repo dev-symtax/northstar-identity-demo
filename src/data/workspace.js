@@ -1,6 +1,6 @@
 import { agents, applications, entitlements, identities, movers, policies } from './catalog.js';
 import { SCENARIO } from './scenario.js';
-import { agentAccess, canApplyDecisions, controlComplete } from '../demo/state.js';
+import { agentAccess, lifecycleStatus } from '../demo/state.js';
 
 const stamp = '13 Oct 2026 · 09:00 UTC';
 export const lifecycleEvents = [
@@ -43,14 +43,14 @@ export const workspacePages = {
     { id: 'POL-AI-304', name: 'Agent owner review', type: 'Agent', appId: null, status: 'Active', updated: '13 Oct 2026', description: 'An active human owner must review the agent permission scope.' },
   ] },
   roles: { title: 'Roles', eyebrow: 'GOVERNANCE', description: 'Business roles, membership and governing access policies.', action: 'View role', columns: [['name', 'Business role'], ['department', 'Department'], ['members', 'Members'], ['entitlementCount', 'Entitlements'], ['policy', 'Policy'], ['status', 'Status']], rows: [
-    ...['Finance Analyst', 'Finance Manager', 'IT Operations Manager', 'HR Business Partner', 'Sales Manager', 'Operations Manager'].map((name, index) => ({ id: `ROLE-${index + 1}`, name, department: ['Finance', 'Finance', 'IT', 'HR', 'Sales', 'Operations'][index], members: identities.filter(person => person.role === name).length, entitlementCount: index < 2 ? index === 0 ? 4 : 5 : 6, policy: index < 2 ? 'POL-FIN-101' : 'POL-ROLE-401', status: 'Active' })),
+    ...['Finance Analyst', 'Finance Manager', 'IT Operations Manager', 'HR Business Partner', 'Sales Manager', 'Operations Manager'].map((name, index) => ({ id: `ROLE-${index + 1}`, name, department: ['Finance', 'Finance', 'IT', 'HR', 'Sales', 'Operations'][index], members: identities.filter(person => person.role === name).length, entitlementCount: index < 2 ? index === 0 ? 5 : 7 : 6, policy: index < 2 ? 'POL-FIN-101' : 'POL-ROLE-401', status: 'Active' })),
   ] },
   agents: { title: 'AI agents', eyebrow: 'GOVERNANCE', description: 'Agent identities, human owners and governed permission scopes.', action: 'View agent', columns: [['name', 'AI agent'], ['owner', 'Owner'], ['permissionCount', 'Permissions'], ['policy', 'Governing policy'], ['status', 'Status']], rows: agents.map(agent => ({ ...agent, permissionCount: agent.resources.length, policy: 'POL-AI-301 · POL-AI-302 · POL-AI-303', status: 'Active' })) },
   applications: { title: 'Applications', eyebrow: 'INTEGRATIONS', description: 'Twelve applications with 40 registered entitlements and assigned provisioning owners.', action: 'View application', columns: [['appId', 'Application'], ['vendor', 'Vendor'], ['provisioning', 'Provisioning'], ['owner', 'Owner'], ['entitlementCount', 'Entitlements'], ['status', 'Status']], rows: applications.map(app => ({ ...app, appId: app.id, vendor: ({ sap: 'SAP', powerbi: 'Microsoft', finance: 'Meridian Global', legacy: 'Meridian Global', workday: 'Workday', entra: 'Microsoft', ad: 'Microsoft', snow: 'ServiceNow', salesforce: 'Salesforce', m365: 'Microsoft', warehouse: 'Meridian Global', legal: 'Meridian Global' })[app.id], provisioning: app.mode === 'API' ? 'Connected · API' : 'Manual', entitlementCount: entitlements.filter(item => item.app === app.id).length, status: 'Active' })) },
   connectors: { title: 'Connectors', eyebrow: 'INTEGRATIONS', description: 'Connector health and last successful synchronization for connected applications.', action: 'View connector', columns: [['appId', 'Application'], ['name', 'Connector'], ['lastSync', 'Last sync'], ['status', 'Health'], ['owner', 'Owner']], rows: applications.filter(app => app.mode === 'API').map(app => ({ id: `CONN-${app.id.toUpperCase()}`, appId: app.id, name: `${app.name} API`, lastSync: stamp, status: 'Healthy', owner: app.owner, authentication: 'Managed service account', schedule: 'Every 15 minutes' })) },
   workday: { title: 'Workday source', eyebrow: 'INTEGRATIONS', description: 'HR source synchronization and the most recent lifecycle events.', action: 'View latest event', columns: [['id', 'Event'], ['name', 'Identity'], ['type', 'Type'], ['received', 'Received'], ['status', 'Status']], rows: lifecycleEvents.slice(0, 6) },
   reports: { title: 'Reports', eyebrow: 'MONITORING', description: 'Program metrics for effective-date provisioning, certifications and connector health.', action: 'View report', columns: [['name', 'Report'], ['value', 'Current value'], ['target', 'Target'], ['scope', 'Scope'], ['updated', 'Updated']], rows: [
-    { id: 'REP-MOVERS', name: 'Movers provisioned by effective date', value: '72%', target: '95%', scope: '2,500 upcoming movers', updated: '13 Oct 2026', definition: 'Percentage of movers provisioned by their effective date across the program.' },
+    { id: 'REP-MOVERS', name: 'Movers provisioned by effective date', value: '72%', target: '95%+', scope: '2,500 upcoming movers', updated: '13 Oct 2026', definition: 'Percentage of movers provisioned by their effective date across the program.' },
     { id: 'REP-CERT', name: 'Certification review completion', value: '72%', target: '100%', scope: 'Finance access certification', updated: '13 Oct 2026', definition: '144 of 200 access assignments reviewed in the active Finance campaign.' },
     { id: 'REP-CONN', name: 'Connector availability', value: '100%', target: '99.9%', scope: '9 connected applications', updated: '13 Oct 2026', definition: 'All nine registered API connectors reported a successful synchronization.' },
   ] },
@@ -65,7 +65,7 @@ export const workspacePages = {
 
 export function pageRows(key, state) {
   return workspacePages[key].rows.map(row => {
-    if (key === 'events' || key === 'workday') return row.identity === 'sarah' ? { ...row, status: state.fulfillmentStarted ? controlComplete(state) ? 'Completed' : 'Manual task open' : state.applied ? 'Awaiting effective date' : canApplyDecisions(state) ? 'Ready to apply' : 'Needs decision' } : row;
+    if (key === 'events' || key === 'workday') return row.identity === 'sarah' ? { ...row, status: lifecycleStatus(state) } : row;
     if (key === 'tasks' && row.id === 'TASK-0842') return { ...row, status: state.review === 'pending' ? 'Needs decision' : state.review === 'approved' ? 'Approved' : 'Denied' };
     if (key === 'roles' && state.fulfillmentStarted && ['Finance Analyst', 'Finance Manager'].includes(row.name)) return { ...row, members: row.members + (row.name === 'Finance Analyst' ? -1 : 1) };
     if (key === 'agents' && row.id === 'finance-agent') {

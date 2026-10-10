@@ -44,6 +44,11 @@ test('portraits, profile, favicon and body/control accessibility are consistent'
     expect(await images.count()).toBeGreaterThanOrEqual(2);
     expect(await images.evaluateAll(items => items.every(image => image.complete && image.naturalWidth === 192 && image.naturalHeight === 192))).toBe(true);
   }
+  const directoryImages = page.locator('.directory-table .avatar img');
+  await expect(directoryImages).toHaveCount(48);
+  await expect.poll(async () => directoryImages.evaluateAll(images => images.every(image => image.complete && image.naturalWidth === 192 && image.naturalHeight === 192))).toBe(true);
+  expect(await directoryImages.evaluateAll(images => new Set(images.map(image => image.src)).size)).toBe(48);
+  expect(await directoryImages.evaluateAll(images => images.every(image => getComputedStyle(image).objectFit === 'cover'))).toBe(true);
   for (const location of ['header', 'sidebar']) {
     const trigger = page.getByRole('button', { name: `Open Patrick Sena profile · ${location}`, exact: true });
     await trigger.click();
@@ -109,10 +114,10 @@ test('unchanged access is hidden, comments are tooltips, and audit filters retai
   await page.getByLabel('Show unchanged access').check();
   await expect(accessRow(page, 'h-sap')).toContainText('Retained');
   await nav(page, 'Audit trail');
-  for (const [name, count] of [['Key controls', 5], ['Overrides', 1], ['Policy-locked', 1], ['Manual tasks', 2], ['All (14)', 14]]) {
+  for (const [name, count] of [['Key controls', 5], ['Overrides', 1], ['Policy-locked', 1], ['Manual tasks', 2], ['All (16)', 16]]) {
     await page.getByRole('button', { name, exact: true }).click();
     await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(count);
   }
-  await accessRow(page, 'h-payment').getByRole('button').click();
+  await accessRow(page, 'h-payment').getByRole('button', { name: 'SAP Payment Approval', exact: true }).click();
   await expect(page.getByRole('dialog').getByRole('img', { name: 'Patrick Sena' })).toBeVisible();
 });

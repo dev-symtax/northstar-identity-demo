@@ -30,7 +30,7 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   const manualScope = humanRemoval && agentRemoval ? 'User and AI agent' : humanRemoval ? 'User only' : 'AI agent only';
   const revocationDescription = humanRemoval && agentRemoval ? 'Remove Sarah Miller’s database write privilege and the Finance Operations Agent’s write permission.' : humanRemoval ? 'Remove Sarah Miller’s database write privilege.' : 'Remove the Finance Operations Agent’s database write permission.';
   const completion = [...state.fulfillmentEvidence].reverse().find(record => legacyRows.some(row => row.id === record.rowId) && record.status === 'Removed');
-  useStepFocus(legacyRef, state.fulfillmentStarted && hasManualTask);
+  useStepFocus(legacyRef, state.fulfillmentStarted && openLegacy.length > 0);
   const closeTask = useCallback(() => setTaskOpen(false), []);
   const apiRows = decisions.filter(row => row.entitlement !== 'legacy-write');
   const changeSummary = connectedChangeSummary(state);
@@ -66,18 +66,18 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   }
 
   return <>
-    <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description={`Applied access decisions are scheduled for ${SCENARIO.effectiveDate}.`} action={state.fulfillmentStarted ? <Button variant="secondary" icon={ArrowRight} onClick={() => navigate(4)}>View audit trail</Button> : <Button icon={Play} onClick={provision}>Provision changes</Button>} />
+    <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description={`Applied access decisions are scheduled for ${SCENARIO.effectiveDate}.`} action={state.fulfillmentStarted ? <Button variant="secondary" icon={ArrowRight} onClick={() => navigate(openLegacy.length ? 1 : 4)}>{openLegacy.length ? 'Return to lifecycle events' : 'View audit trail'}</Button> : <Button icon={Play} onClick={provision}>Provision changes</Button>} />
     <p className="provisioning-run-date">Run date: Monday, 19 Oct 2026 · 08:00 UTC</p>
-    <ol className="provisioning-status" aria-label="Provisioning status">{['Scheduled', 'Provisioned', hasManualTask ? 'Manual task open' : 'No manual task', 'Complete'].map((label, index) => { const current = !state.fulfillmentStarted ? 0 : openLegacy.length ? 2 : 3; return <li key={label} className={index === current ? 'current' : index < current ? 'done' : ''}><span>{index < current ? <Check size={16} /> : index + 1}</span>{label}</li>; })}</ol>
+    <ol className="provisioning-status" aria-label="Provisioning status">{['Scheduled', 'Provisioned', hasManualTask ? 'Manual task open' : 'No manual task', 'Completed'].map((label, index) => { const current = !state.fulfillmentStarted ? 0 : openLegacy.length ? 2 : 3; return <li key={label} className={index === current ? 'current' : index < current ? 'done' : ''}><span>{index < current ? <Check size={16} /> : index + 1}</span>{label}</li>; })}</ol>
     {completionToast && <div className="recorded-toast" role="status">Completion recorded for SN-TASK-004812.</div>}
     <div className={`fulfillment-banner ${state.fulfillmentStarted && !openLegacy.length ? 'complete' : ''}`}>
       <div className="banner-icon">{state.fulfillmentStarted && !openLegacy.length ? <CheckCircle2 size={26} /> : <Clock3 size={26} />}</div>
       <div><h2>{state.fulfillmentStarted ? `Role access provisioned. ${openLegacy.length ? '1 manual task open.' : 'No manual tasks open.'}` : `Changes scheduled for ${SCENARIO.effectiveDate}.`}</h2><p>{state.fulfillmentStarted ? 'Automated results and manual task status are recorded against the applied access decisions.' : 'No access has changed. Provisioning starts when the scheduled changes are run.'}</p></div>
-      <Badge tone={state.fulfillmentStarted && !openLegacy.length ? 'green' : 'amber'}>{state.fulfillmentStarted ? openLegacy.length ? 'Task open' : 'Complete' : 'Scheduled'}</Badge>
+      <Badge tone={state.fulfillmentStarted && !openLegacy.length ? 'green' : 'amber'}>{state.fulfillmentStarted ? openLegacy.length ? 'Task open' : 'Completed' : 'Scheduled'}</Badge>
     </div>
     <div className="stats-row three">
       <Stat label="Changes provisioned" value={`${changeSummary.completed} of ${changeSummary.total}`} detail="changes provisioned" icon={Zap} />
-      <Stat label="Manual tasks" value={!hasManualTask ? '0' : legacyComplete ? 'Complete' : state.fulfillmentStarted ? '1 open' : '1 scheduled'} detail={hasManualTask ? manualScope : 'No manual changes selected'} icon={ClipboardCheck} />
+      <Stat label="Manual tasks" value={!hasManualTask ? '0' : legacyComplete ? 'Completed' : state.fulfillmentStarted ? '1 open' : '1 scheduled'} detail={hasManualTask ? manualScope : 'No manual changes selected'} icon={ClipboardCheck} />
       <Stat label="Effective date" value="19 Oct 2026" detail="Monday · 08:00 UTC" icon={Clock3} />
     </div>
     <section className="panel provisioning-connected">
@@ -94,16 +94,16 @@ export default function Fulfillment({ state, dispatch, navigate }) {
       <div className="access-bottom"><ShieldCheck size={16} /><span>{getAccessDecision(decisions.find(row => row.id === 'h-payment'), state).decidedAction === 'GRANT' ? 'POL-SOD-017 · Accounts Receivable Operator is removed before SAP Payment Approval is granted.' : 'POL-SOD-017 · Accounts Receivable Operator and SAP Payment Approval cannot be held together.'}</span></div>
     </section>
     <section className={`panel legacy-panel ${hasManualTask && !legacyComplete ? 'task-attention' : ''}`} ref={legacyRef}>
-      <SectionTitle title="Disconnected application · manual task" description={<ApplicationName appId="legacy" />}><Badge tone={!hasManualTask || legacyComplete ? 'green' : 'amber'}>{!hasManualTask ? 'Not required' : legacyComplete ? 'Complete' : state.fulfillmentStarted ? 'Task open' : 'Scheduled'}</Badge></SectionTitle>
+      <SectionTitle title="Disconnected application · manual task" description={<ApplicationName appId="legacy" />}><Badge tone={!hasManualTask || legacyComplete ? 'green' : 'amber'}>{!hasManualTask ? 'Not required' : legacyComplete ? 'Completed' : state.fulfillmentStarted ? 'Task open' : 'Scheduled'}</Badge></SectionTitle>
       {hasManualTask ? <div className="legacy-task">
         <div className="legacy-task-title"><span className="legacy-icon"><Server size={24} strokeWidth={1.4} /></span><div><span className="task-source"><ApplicationName appId="snow" indicator={false} /><span>· SN-TASK-004812</span></span><h3>Remove Finance database write access</h3><p>{revocationDescription}</p></div></div>
         <div className="task-details">
           <div><span>OWNER</span><strong>Martin Keller</strong><small>Finance Platforms</small></div>
           <div><span>SLA / DUE</span><strong>{SCENARIO.legacyDue}</strong><small>4 hours from the effective-date run</small></div>
           <div><span>SCOPE</span><strong>{manualScope}</strong><small>{legacyRows.length} {legacyRows.length === 1 ? 'removal' : 'removals'} · 1 task</small></div>
-          <div><span>COMPLETION REFERENCE</span><strong>{legacyComplete ? 'Completion confirmed' : 'Pending completion'}</strong><small>{completion?.reference || 'DBA verification required'}</small></div>
+          <div><span>COMPLETION REFERENCE</span><strong>{legacyComplete ? 'Completed' : 'Pending completion'}</strong><small>{completion?.reference || 'DBA verification required'}</small></div>
         </div>
-        <div className="task-action"><p>{legacyComplete ? 'The completion reference and verification note are recorded for the selected removals.' : 'The task remains open until the selected access removals are verified.'}</p><Button variant="secondary" icon={FileCheck2} disabled={!state.fulfillmentStarted || !openLegacy.length} onClick={openTask}>{legacyComplete ? 'Completion confirmed' : 'Confirm completion'}</Button></div>
+        <div className="task-action"><p>{legacyComplete ? 'The completion reference and verification note are recorded for the selected removals.' : 'The task remains open until the selected access removals are verified.'}</p><Button icon={FileCheck2} disabled={!state.fulfillmentStarted || !openLegacy.length} onClick={openTask}>{legacyComplete ? 'Completed' : 'Confirm completion'}</Button></div>
       </div> : <div className="manual-not-required"><p>Legacy Finance DB Write was retained for the user and AI agent. No manual removal task is required.</p></div>}
     </section>
     <p className="provisioning-policy-note">Payment approval is restricted to human identities (POL-AI-303).</p>

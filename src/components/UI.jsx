@@ -20,7 +20,8 @@ export function Avatar({ name, large = false }) {
   return <span className={`avatar ${large ? 'large' : ''}`}>{portraits[name] ? <img src={portraits[name]} alt={name} /> : name.split(' ').map(s => s[0]).slice(0, 2).join('')}</span>;
 }
 export function Actor({ name }) {
-  return <span className="actor-cell">{name?.startsWith('Patrick Sena') && <Avatar name="Patrick Sena" />}<span>{name || '—'}</span></span>;
+  const identity = name?.split(' · ')[0];
+  return <span className="actor-cell">{portraits[identity] && <Avatar name={identity} />}<span>{name || '—'}</span></span>;
 }
 export function CommentTooltip({ comment }) {
   const [open, setOpen] = useState(false);
@@ -32,10 +33,11 @@ export function Empty({ title, children, onAction, action = 'View lifecycle even
 export function Notice({ children, tone = 'blue', icon: Icon = Info }) {
   return <div className={`notice ${tone}`}><Icon size={18} strokeWidth={1.8} /><div>{children}</div></div>;
 }
-export function Drawer({ title, subtitle, children, onClose }) {
+export function Drawer({ title, subtitle, children, onClose, preserveScroll = false }) {
   const ref = useRef(null);
   useEffect(() => {
     const before = document.activeElement;
+    const scrollPosition = { left: window.scrollX, top: window.scrollY };
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     ref.current?.focus();
@@ -50,8 +52,12 @@ export function Drawer({ title, subtitle, children, onClose }) {
       }
     };
     document.addEventListener('keydown', handler);
-    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', handler); before?.focus(); };
-  }, [onClose]);
+    return () => {
+      document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', handler);
+      if (preserveScroll && before?.isConnected) { before.focus({ preventScroll: true }); window.scrollTo({ ...scrollPosition, behavior: 'instant' }); }
+      else before?.focus();
+    };
+  }, [onClose, preserveScroll]);
   return <div className="drawer-backdrop" onMouseDown={e => e.target === e.currentTarget && onClose()}><aside className="drawer" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref}><div className="drawer-heading"><div><div className="eyebrow">{subtitle}</div><h2>{title}</h2></div><button className="icon-button" aria-label="Close details" onClick={onClose}><X size={20} /></button></div><div className="drawer-content">{children}</div></aside></div>;
 }
 export function Field({ label, children }) { return <div className="detail-field"><dt>{label}</dt><dd>{children}</dd></div>; }

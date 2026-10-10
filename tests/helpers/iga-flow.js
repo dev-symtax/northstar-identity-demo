@@ -7,7 +7,7 @@ export const EDIT_COMMENT = 'Budget approval remains with the Finance Director.'
 export const COMPLETION_REFERENCE = 'CHG-2026-2059';
 export const COMPLETION_NOTE = 'DBA confirmed user and agent database write permissions were revoked and independently verified.';
 
-const prohibited = /\b(?:demo|presenter|synthetic|sample|story)\b|Did we cover|Access starts with context\.|Every permission has a decision\.|Every decision has a reason\.|Consistent governance\. Practical fulfillment\.|Explain the decision\. Prove the control\.|coming soon|Identity intelligence|Two distinct evidence trails|When business context changes, access changes with it\.|People\. Agents\. Applications\.|Change is accelerating\. Control must keep pace\./i;
+const prohibited = /\b(?:demo|presenter|synthetic|sample|mock|story)\b|Did we cover|Access starts with context\.|Every permission has a decision\.|Every decision has a reason\.|Consistent governance\. Practical fulfillment\.|Explain the decision\. Prove the control\.|coming soon|Identity intelligence|Two distinct evidence trails|When business context changes, access changes with it\.|People\. Agents\. Applications\.|Change is accelerating\. Control must keep pace\./i;
 
 export async function assertProductLanguage(page) {
   const visibleCopy = await page.evaluate(() => {
@@ -153,11 +153,14 @@ export async function expandConnected(page) {
 }
 
 export async function assertKeyAuditRecords(page) {
+  await expect(page.getByRole('button', { name: 'All (16)', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(16);
+  await page.getByRole('button', { name: 'Key controls', exact: true }).click();
   await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(5);
   expect((await page.locator('.evidence-panel tbody tr').evaluateAll(rows => rows.map(row => row.dataset.rowId))).sort()).toEqual(KEY_RECORDS);
   await expect(accessRow(page, 'h-payment')).toContainText('Patrick Sena');
   await expect(accessRow(page, 'a-payment')).toContainText('Not permitted by policy');
   await expect(accessRow(page, 'a-payment')).toContainText('POL-AI-303');
-  await page.getByRole('button', { name: 'All (14)', exact: true }).click();
-  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(14);
+  await page.getByRole('button', { name: 'All (16)', exact: true }).click();
+  await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(16);
 }

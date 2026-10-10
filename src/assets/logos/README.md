@@ -1,14 +1,20 @@
-Official asset slots are defined in `src/data/assets.js`:
+# Official application logo registry
 
-- `sap` → SAP
-- `snow` → ServiceNow (`servicenow` slot)
-- `workday` → Workday
-- `powerbi` → Microsoft Power BI (`microsoft-power-bi` slot)
-- `entra` → Microsoft Entra ID (`microsoft-entra-id` slot)
+`src/data/assets.js` maps application IDs to local assets. Connector records carry the same application ID, so all screens use one registry. The supplied `connector_logo_official_sources.zip` contains source links only, with no image binaries. All eight official logo slots therefore retain their neutral fallback. No brand marks were recreated.
 
-No official logo files were supplied. These slots intentionally contain `null`,
-so the interface uses neutral category icons and initials. Finance Hub uses a
-generic finance icon; Legacy Finance DB uses a database cylinder and Manual label.
-To replace a slot, store the supplied official SVG/PNG here, import it in the
-registry and assign its import to `asset`. Vite bundles it locally and the
-standalone build inlines it. Do not use a remote URL or recreate a brand logo.
+The missing official SVG files (official transparent PNG equivalents are also accepted) are:
+
+| Application ID | Required file | Mark |
+| --- | --- | --- |
+| sap | sap-s4hana.svg | Official SAP S/4HANA mark, or an approved SAP primary logo with the nearby S/4HANA application label |
+| powerbi | microsoft-power-bi.svg | Official Power BI product icon |
+| workday | workday.svg | Official Workday primary logo |
+| entra | microsoft-entra-id.svg | Official Microsoft Entra ID product icon |
+| ad | active-directory.svg | Official on-premises Active Directory / AD DS icon; do not substitute Entra ID |
+| snow | servicenow.svg | Official ServiceNow logo |
+| salesforce | salesforce.svg | Official Salesforce cloud logo |
+| m365 | microsoft-365.svg | Official Microsoft 365 product icon |
+
+Store official supplied assets here, import them in the registry, and assign their import to `asset`. Vite bundles them locally and the standalone build embeds them. Never assign remote URLs or imitate brand marks. Official images render at 22px on the existing white tile.
+
+Finance Hub keeps the generic finance icon. Legacy Finance DB keeps the database icon and Manual label. Warehouse Operations and Legal Document Vault also use category fallbacks.

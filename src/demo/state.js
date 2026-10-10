@@ -1,8 +1,8 @@
-import { decisions, applicationById, entitlementById } from '../data/catalog.js';
+import { decisions, applicationById, entitlementById, identities } from '../data/catalog.js';
 import { REVIEWER, SCENARIO } from '../data/scenario.js';
 
 export const STORAGE_KEY = 'northstar-identity-demo-v1';
-const STATE_VERSION = 2;
+const STATE_VERSION = 3;
 const ACTIONS = ['KEEP', 'GRANT', 'REMOVE', 'REVIEW', 'NOT_PERMITTED', 'DO_NOT_GRANT'];
 const REVIEWER_LABEL = `${REVIEWER.name} · ${REVIEWER.role}`;
 const SYSTEM_ACTOR = 'Northstar policy engine';
@@ -11,7 +11,7 @@ const EVENT_ID = 'WD-MOV-2026-0842';
 export const initialState = () => ({
   version: STATE_VERSION, evaluated: false, applied: false, review: 'pending', reviewNote: '',
   fulfillmentStarted: false, accessDecisions: {}, tasks: {}, decisionEvidence: [],
-  fulfillmentEvidence: [], actionCount: 0, actions: [],
+  fulfillmentEvidence: [], lifecycleEvidence: [], legacyTask: null, actionCount: 0, actions: [],
 });
 
 function recommendation(row) {
@@ -41,6 +41,15 @@ function executionRecord(row, status, at, extra = {}) {
 function executionTimestamp(state) {
   // Editing access decisions does not advance the effective-date execution past its task SLA.
   return new Date(Date.parse(SCENARIO.fulfillmentAt) + Math.min(state.actionCount, 239) * 60000).toISOString();
+}
+function recordLifecycleCompletion(state, timestamp) {
+  if (!controlComplete(state) || state.lifecycleEvidence.length) return state;
+  return { ...state, lifecycleEvidence: [{
+    id: 'LE-0842-completed', eventId: EVENT_ID, identity: 'Sarah Miller',
+    status: 'Completed', actor: SYSTEM_ACTOR, timestamp,
+    reason: 'All applied access changes and required manual removals are verified.',
+    ...(state.fulfillmentEvidence.some(record => record.task === 'SN-TASK-004812') ? { task: 'SN-TASK-004812' } : {}),
+  }] };
 }
 function decisionFor(row, action, comment = '') {
   return {
@@ -174,7 +183,9 @@ function reduceState(state, action) {
       tasks[row.id] = { status };
       evidence.push(executionRecord(row, status, at, detail));
     });
-    return { ...state, fulfillmentStarted: true, tasks, fulfillmentEvidence: evidence, actionCount: state.actionCount + 1 };
+    const manualRows = decisions.filter(row => tasks[row.id]?.status === 'Task open');
+    const legacyTask = manualRows.length ? { id: 'SN-TASK-004812', status: 'Task open', owner: 'Martin Keller', due: SCENARIO.legacyDue, rowIds: manualRows.map(row => row.id) } : null;
+    return recordLifecycleCompletion({ ...state, fulfillmentStarted: true, tasks, legacyTask, fulfillmentEvidence: evidence, actionCount: state.actionCount + 1 }, evidence.at(-1).timestamp);
   }
   if (action.type === 'COMPLETE_LEGACY') {
     const rows = legacyTaskRows(state);
@@ -188,7 +199,8 @@ function reduceState(state, action) {
         sla: SCENARIO.legacyDue, reference: action.reference.trim(), note: action.note.trim(), task: 'SN-TASK-004812',
       });
     });
-    return { ...state, tasks, actionCount: state.actionCount + 1, fulfillmentEvidence: [...state.fulfillmentEvidence, ...records] };
+    const legacyTask = { ...state.legacyTask, status: 'Completed', completedAt: records.at(-1).timestamp, reference: action.reference.trim(), note: action.note.trim() };
+    return recordLifecycleCompletion({ ...state, tasks, legacyTask, actionCount: state.actionCount + 1, fulfillmentEvidence: [...state.fulfillmentEvidence, ...records] }, records.at(-1).timestamp);
   }
   return state;
 }
@@ -235,7 +247,7 @@ export function controlComplete(state) {
     && state.tasks['a-payment']?.status === 'Not permitted by policy';
 }
 export function humanAccess(state) {
-  const current = ['sap-view', 'powerbi-fin', 'ar-operator', 'legacy-write'];
+  const current = identities[0].access;
   return decisions.filter(row => row.scope === 'human').filter(row => current.includes(row.entitlement)
     ? state.tasks[row.id]?.status !== 'Removed' : state.tasks[row.id]?.status === 'Granted');
 }
@@ -249,15 +261,31 @@ export function restoreState(storage) {
     const raw = storage.getItem(STORAGE_KEY);
     if (!raw) return initialState();
     const saved = JSON.parse(raw);
-    if (saved.version !== STATE_VERSION || !Array.isArray(saved.actions) || saved.actions.length > 1000) return initialState();
+    if (![2, STATE_VERSION].includes(saved.version) || !Array.isArray(saved.actions) || saved.actions.length > 1000) return initialState();
     const allowed = ['EVALUATE', 'ACCEPT_ALL', 'DECIDE', 'REVIEW', 'RESOLVE_SOD', 'APPLY_DECISIONS', 'RUN_FULFILLMENT', 'COMPLETE_LEGACY'];
     let replay = initialState();
     for (const action of saved.actions) {
       if (!action || !allowed.includes(action.type)) return initialState();
+      // A previously applied 14-record event receives the two new standard
+      // ServiceNow recommendations during migration, without losing its trail.
+      if (saved.version === 2 && action.type === 'APPLY_DECISIONS') {
+        for (const id of ['h-snow-self', 'h-snow-approver']) {
+          const row = decisions.find(item => item.id === id);
+          if (!getAccessDecision(row, replay).decidedAction) replay = demoReducer(replay, { type: 'DECIDE', rowId: id, action: row.recommendedAction });
+        }
+      }
       const next = demoReducer(replay, action);
       if (next === replay) return initialState();
       replay = next;
     }
     return replay;
   } catch { return initialState(); }
+}
+
+export function lifecycleStatus(state) {
+  return state.fulfillmentStarted ? controlComplete(state) ? 'Completed' : 'Manual task open'
+    : state.applied ? 'Awaiting effective date' : canApplyDecisions(state) ? 'Ready to apply' : 'Needs decision';
+}
+export function sarahResumeTarget(state) {
+  return state.fulfillmentStarted ? controlComplete(state) ? 'audit' : 'provisioning' : 'event';
 }

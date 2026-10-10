@@ -72,6 +72,10 @@ test('single HTML embeds scripts, styles, assets and exact local fonts and licen
   expect(assets.fonts).toHaveLength(2);
   for (const font of assets.fonts) expect(font).toEqual({ family: 'Plus Jakarta Sans', status: 'loaded' });
   for (const image of assets.images) expect(image).toMatch(/^data:/);
+  const directoryPortraits = page.locator('.directory-table .avatar img');
+  await expect(directoryPortraits).toHaveCount(48);
+  await expect.poll(async () => directoryPortraits.evaluateAll(images => images.every(image => image.complete && image.naturalWidth === 192 && image.naturalHeight === 192))).toBe(true);
+  expect(await directoryPortraits.evaluateAll(images => new Set(images.map(image => image.src)).size)).toBe(48);
   const photos = await page.getByRole('img', { name: /Patrick Sena|Sarah Miller/ }).evaluateAll(images => images.map(image => ({ src: image.src, loaded: image.complete && image.naturalWidth === 192 && image.naturalHeight === 192 })));
   for (const photo of photos) expect(photo.loaded).toBe(true);
   for (const name of ['patrick-sena', 'sarah-miller']) {
@@ -129,7 +133,7 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await page.goto(appUrl);
   await disableNetworking(context);
   expect(await page.evaluate(() => navigator.onLine)).toBe(false);
-  await expect(page.locator('.effective-date')).toContainText('Monday, 19 October 2026');
+  await expect(page.locator('.story-steps')).toHaveCount(0);
   await expect(page.locator('.app-footer')).toContainText('Today: Tuesday, 13 Oct 2026');
   await recommend(page);
   await expectFullyInViewport(page, page.locator('.exception-panel'));
@@ -140,8 +144,19 @@ test('offline full approval path supports provisioning, editable completion, JSO
   await applyDecisions(page);
   await provision(page);
   await expectFullyInViewport(page, page.locator('.legacy-panel'));
+  await page.getByRole('button', { name: 'Return to lifecycle events', exact: true }).click();
+  const mover = page.locator('[data-record-id="WD-MOV-2026-0842"]');
+  await expect(mover).toContainText('Manual task open');
+  await mover.getByRole('button').first().click();
+  await expect(page.getByRole('heading', { name: 'Provisioning', exact: true })).toBeVisible();
+  await expectFullyInViewport(page, page.locator('.legacy-panel'));
   await confirmCompletion(page);
-  await nav(page, 'Audit trail');
+  await expect(page.locator('.legacy-panel .badge')).toHaveText('Completed');
+  await page.getByRole('button', { name: 'View audit trail', exact: true }).click();
+  await expect(page.getByLabel('Access lifecycle', { exact: true })).toBeVisible();
+  await accessRow(page, 'a-payment').getByRole('button', { name: 'View policy POL-AI-303', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('cannot be overridden for an AI agent');
+  await page.keyboard.press('Escape');
   await assertKeyAuditRecords(page);
   await expect(accessRow(page, 'h-payment')).toContainText(REVIEW_COMMENT);
   await page.getByRole('tab', { name: 'Provisioning', exact: true }).click();
@@ -151,6 +166,9 @@ test('offline full approval path supports provisioning, editable completion, JSO
   }
   const bundle = await downloadAudit(page);
   expect(bundle.effectiveDate).toBe('2026-10-19');
+  expect(bundle.legacyTask.status).toBe('Completed');
+  expect(bundle.lifecycleEvidence).toHaveLength(1);
+  expect(bundle.accessDecisions).toHaveLength(16);
   expect(bundle.decisionEvidence.filter(record => record.rowId === 'h-payment').at(-1)).toMatchObject({ decidedAction: 'GRANT', decidedBy: 'Patrick Sena · Head of Identity Governance', decidedAt: '2026-10-13T09:01:00.000Z', comment: REVIEW_COMMENT });
   expect(bundle.decisionEvidence.filter(record => record.rowId === 'a-payment').at(-1)).toMatchObject({ status: 'Policy-locked', decidedAction: 'NOT_PERMITTED', policyId: 'POL-AI-303' });
   for (const record of bundle.provisioningEvidence || bundle.fulfillmentEvidence) expect(record.timestamp.slice(0, 10)).toBe('2026-10-19');
@@ -202,7 +220,7 @@ test('offline Budget Approval edit is carried into the scheduled changes and aud
   await expect(page.getByRole('tooltip')).toHaveText(EDIT_COMMENT);
   await provision(page);
   await nav(page, 'Audit trail');
-  await page.getByRole('button', { name: 'All (14)', exact: true }).click();
+  await page.getByRole('button', { name: 'All (16)', exact: true }).click();
   await expect(accessRow(page, 'h-budget')).toContainText('Changed');
   await expect(accessRow(page, 'h-budget')).toContainText(EDIT_COMMENT);
   const bundle = await downloadAudit(page);

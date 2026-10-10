@@ -21,7 +21,7 @@ test('workspace breadth agrees with the enterprise catalog and program figures',
   assert.equal(workspacePages.agents.rows.length, agents.length);
   for (const request of workspacePages.requests.rows) assert.ok(entitlements.some(item => item.name === request.access && item.app === request.appId));
   for (const campaign of workspacePages.certifications.rows) assert.equal(campaign.progress, 100 * campaign.reviewed / campaign.total);
-  assert.deepEqual(workspacePages.reports.rows[0], { id: 'REP-MOVERS', name: 'Movers provisioned by effective date', value: '72%', target: '95%', scope: '2,500 upcoming movers', updated: '13 Oct 2026', definition: 'Percentage of movers provisioned by their effective date across the program.' });
+  assert.deepEqual(workspacePages.reports.rows[0], { id: 'REP-MOVERS', name: 'Movers provisioned by effective date', value: '72%', target: '95%+', scope: '2,500 upcoming movers', updated: '13 Oct 2026', definition: 'Percentage of movers provisioned by their effective date across the program.' });
 });
 
 test('event status and agent detail permissions follow recorded decisions and execution', () => {

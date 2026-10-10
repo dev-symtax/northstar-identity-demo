@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { checkSourceText, checkBuiltText, checkHtmlText } from '../scripts/product-text-guard.js';
 
 test('source guard rejects presentation copy, accessible labels and conditional text', () => {
-  for (const code of ['const view = <p>Reset demo</p>;', 'const view = <button aria-label="Presenter guide" />;', 'const view = <p>{ok ? "Ready" : "Synthetic data"}</p>;', 'const reason = `Use sample evidence`;', 'const view = <p>Coming soon</p>;', 'const view = <h1>Identity intelligence</h1>;']) {
+  for (const code of ['const view = <p>Reset demo</p>;', 'const view = <button aria-label="Presenter guide" />;', 'const view = <p>{ok ? "Ready" : "Synthetic data"}</p>;', 'const reason = `Use sample evidence`;', 'const view = <p>Coming soon</p>;', 'const view = <h1>Identity intelligence</h1>;', 'const view = <p>Mock records</p>;']) {
     assert.throws(() => checkSourceText(code, 'screen.jsx'), /Presentation language/);
   }
 });

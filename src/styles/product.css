@@ -136,3 +136,9 @@ th { position: relative; }
 .notice, .inbound-panel p, .empty-state p, .recommendations-screen .recommendation-sod p { font-size: 15px; }
 .detail-list li, .guide-list strong, .guide-list p, .error-text, .tenant small, .story-person div > span, .story-person strong { font-size: 15px; }
 .profile-role > span { font-size: 11px; }
+
+.event-source .event-source-label { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.event-source-label > span:not(.application-tile):not(.badge) { white-space: nowrap; }
+.recommendation-toolbar .button.primary { font-weight: 600; }
+.policy-link { display: block; min-height: 40px; }
+.lifecycle-history { margin-top: 24px; }

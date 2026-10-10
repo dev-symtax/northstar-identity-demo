@@ -42,9 +42,9 @@ const permissionSeeds = [
   ['ad-user', 'AD Standard User', 'ad', 'Standard'],
   ['ad-admin', 'AD Domain Administrator', 'ad', 'High'],
   ['ad-ops', 'AD Operations Group', 'ad', 'Standard'],
-  ['snow-user', 'ServiceNow Requester', 'snow', 'Standard'],
+  ['snow-user', 'Employee Self Service', 'snow', 'Standard'],
   ['snow-agent', 'ServiceNow Service Desk', 'snow', 'Standard'],
-  ['snow-change', 'ServiceNow Change Approver', 'snow', 'High'],
+  ['snow-change', 'Finance Request Approver', 'snow', 'High'],
   ['sf-sales', 'Salesforce Sales User', 'salesforce', 'Standard'],
   ['sf-manager', 'Salesforce Sales Manager', 'salesforce', 'Standard'],
   ['sf-export', 'Salesforce Data Export', 'salesforce', 'High'],
@@ -77,7 +77,7 @@ export const identities = peopleNames.map((name, index) => {
     status: 'Active',
   };
 });
-Object.assign(identities[0], { role: 'Finance Analyst', manager: 'Rachel Morgan', access: ['sap-view', 'powerbi-fin', 'ar-operator', 'legacy-write'] });
+Object.assign(identities[0], { role: 'Finance Analyst', manager: 'Rachel Morgan', access: ['sap-view', 'powerbi-fin', 'ar-operator', 'legacy-write', 'snow-user'] });
 // The completed leaver events retain their identity records for audit, with
 // inactive accounts and no remaining application access.
 for (const index of [39, 45]) Object.assign(identities[index], { status: 'Inactive', access: [] });
@@ -114,6 +114,8 @@ const rows = [
   ['h-ar', 'human', 'ar-operator', 'REMOVE', 'POL-FIN-101', 'Receivables operations no longer fit the manager role.'],
   ['h-legacy', 'human', 'legacy-write', 'REMOVE', 'POL-FIN-101', 'Direct database writes are outside the manager’s responsibilities.'],
   ['h-payment', 'human', 'payment-approval', 'REVIEW', 'POL-RISK-204', 'Explicit approval is required; receivables access must be removed before activation.'],
+  ['h-snow-self', 'human', 'snow-user', 'KEEP', 'POL-FIN-101', 'Employee self service remains necessary in Sarah’s manager role.'],
+  ['h-snow-approver', 'human', 'snow-change', 'GRANT', 'POL-FIN-101', 'Finance Managers approve finance service requests within their business scope.'],
   ['a-inbound', 'inbound', null, 'KEEP', 'POL-AI-301', 'Finance Managers remain eligible to use the approved agent.'],
   ['a-bi', 'outbound', 'powerbi-fin', 'KEEP', 'POL-AI-302', 'Finance analysis remains appropriate for the agent.'],
   ['a-reports', 'outbound', 'finance-reports', 'KEEP', 'POL-AI-302', 'Read-only finance reporting remains appropriate for the owner’s new role.'],

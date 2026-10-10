@@ -5,7 +5,7 @@ import { SCENARIO, REVIEWER } from '../src/data/scenario.js';
 import {
   initialState, demoReducer as reduce, getAccessDecision, actionLabel, canApplyDecisions,
   decisionSummary, fulfillmentStatus, legacyTaskRows, humanAccess, agentAccess,
-  readiness, connectedChangeSummary, controlComplete, restoreState, STORAGE_KEY,
+  readiness, connectedChangeSummary, controlComplete, restoreState, STORAGE_KEY, lifecycleStatus, sarahResumeTarget,
 } from '../src/demo/state.js';
 
 const row = id => decisions.find(item => item.id === id);
@@ -38,10 +38,10 @@ test('enterprise catalog preserves counts, unique relationships, policies and ow
   assert.equal(agents.find(item => item.id === 'finance-agent').owner, 'Sarah Miller');
 });
 
-test('recommendation counts match the unchanged human and agent scenarios', () => {
+test('recommendation counts include ServiceNow while preserving the agent scenario', () => {
   const count = scope => decisions.filter(item => scope === 'human' ? item.scope === 'human' : item.scope !== 'human')
     .reduce((counts, item) => ({ ...counts, [item.recommendedAction]: (counts[item.recommendedAction] || 0) + 1 }), {});
-  assert.deepEqual(count('human'), { KEEP: 2, GRANT: 2, REMOVE: 2, REVIEW: 1 });
+  assert.deepEqual(count('human'), { KEEP: 3, GRANT: 3, REMOVE: 2, REVIEW: 1 });
   assert.deepEqual(count('agent'), { KEEP: 3, GRANT: 1, REMOVE: 2, NOT_PERMITTED: 1 });
   assert.equal(actionLabel('NOT_PERMITTED'), 'Not permitted by policy');
   assert.equal(actionLabel('DO_NOT_GRANT'), 'Do not grant');
@@ -51,11 +51,11 @@ test('evaluation creates recommendations without any access or provisioning chan
   const start = initialState();
   for (const action of [{ type: 'ACCEPT_ALL', scope: 'human' }, { type: 'REVIEW', result: 'approved', note: 'Approved' }, { type: 'DECIDE', rowId: 'h-budget', action: 'GRANT' }, { type: 'APPLY_DECISIONS' }, { type: 'RUN_FULFILLMENT' }]) assert.equal(reduce(start, action), start);
   const state = evaluate(start);
-  assert.equal(state.decisionEvidence.length, 14);
+  assert.equal(state.decisionEvidence.length, 16);
   assert.equal(state.fulfillmentEvidence.length, 0);
   assert.equal(state.applied, false);
   assert.deepEqual(state.tasks, {});
-  assert.equal(humanAccess(state).length, 4);
+  assert.equal(humanAccess(state).length, 5);
   assert.equal(agentAccess(state).length, 4);
   assert.equal(readiness(state), false);
   assert.equal(decision(state, 'h-budget').decidedAction, null);
@@ -77,12 +77,12 @@ test('agent payment permission is automatically policy-locked and cannot be chan
 test('bulk acceptance only decides standard rows in the selected tab', () => {
   const evaluated = evaluate(initialState());
   const human = accept(evaluated, 'human');
-  assert.equal(decisionSummary(human).decided, 7);
+  assert.equal(decisionSummary(human).decided, 9);
   for (const item of decisions.filter(item => item.scope === 'human' && item.id !== 'h-payment')) assert.equal(decision(human, item.id).status, 'Accepted');
   assert.equal(decision(human, 'h-payment').decidedAction, null);
   assert.equal(decision(human, 'a-bi').decidedAction, null);
   const both = accept(human, 'agent');
-  assert.equal(decisionSummary(both).decided, 13);
+  assert.equal(decisionSummary(both).decided, 15);
   assert.equal(decision(both, 'a-payment').status, 'Policy-locked');
   assert.equal(accept(both, 'human'), both);
   assert.equal(accept(both, 'agent'), both);
@@ -107,7 +107,7 @@ test('bulk acceptance preserves already changed choices and their comments', () 
   const state = acceptBoth(changed);
   assert.equal(decision(state, 'h-budget').decidedAction, 'DO_NOT_GRANT');
   assert.equal(decision(state, 'h-budget').comment, 'Retain approval with the controller.');
-  assert.equal(decisionSummary(state).decided, 13);
+  assert.equal(decisionSummary(state).decided, 15);
 });
 
 test('approval requires a comment, remains editable before apply and grants nothing itself', () => {
@@ -175,7 +175,7 @@ test('Apply decisions requires every row and a resolved policy review', () => {
   assert.equal(applied.fulfillmentStarted, false);
   assert.deepEqual(applied.tasks, {});
   assert.equal(applied.fulfillmentEvidence.length, 0);
-  assert.equal(humanAccess(applied).length, 4);
+  assert.equal(humanAccess(applied).length, 5);
   assert.equal(fulfillmentStatus(row('h-budget'), applied), 'Scheduled');
 });
 
@@ -192,10 +192,10 @@ test('applied decisions are immutable including review, standard rows and guardr
 
 test('decision summary lists applied choices by action and application', () => {
   const summary = decisionSummary(readyToApply());
-  assert.equal(summary.decided, 14);
-  assert.equal(summary.total, 14);
-  assert.deepEqual(summary.byAction, { KEEP: 5, GRANT: 4, REMOVE: 4, REVIEW: 0, NOT_PERMITTED: 1, DO_NOT_GRANT: 0 });
-  assert.equal(summary.byApplication.reduce((sum, app) => sum + app.count, 0), 14);
+  assert.equal(summary.decided, 16);
+  assert.equal(summary.total, 16);
+  assert.deepEqual(summary.byAction, { KEEP: 6, GRANT: 5, REMOVE: 4, REVIEW: 0, NOT_PERMITTED: 1, DO_NOT_GRANT: 0 });
+  assert.equal(summary.byApplication.reduce((sum, app) => sum + app.count, 0), 16);
   assert.equal(summary.byApplication.find(app => app.application === 'SAP S/4HANA').counts.REMOVE, 2);
 });
 
@@ -333,16 +333,85 @@ test('invalid or old stored sessions recover safely and cannot forge provisionin
 test('reset restores initial recommendations, access and both audit trails', () => {
   const reset = reduce(complete(provisioned()), { type: 'RESET' });
   assert.deepEqual(reset, initialState());
-  assert.equal(humanAccess(reset).length, 4);
+  assert.equal(humanAccess(reset).length, 5);
   assert.equal(agentAccess(reset).length, 4);
 });
 
 
 test('connected change counts exclude unchanged access, policy locks and manual removals, and follow overrides', () => {
-  assert.deepEqual(connectedChangeSummary(apply(readyToApply())), { total: 6, completed: 0 });
-  assert.deepEqual(connectedChangeSummary(provisioned()), { total: 6, completed: 6 });
+  assert.deepEqual(connectedChangeSummary(apply(readyToApply())), { total: 7, completed: 0 });
+  assert.deepEqual(connectedChangeSummary(provisioned()), { total: 7, completed: 7 });
   const withheld = decide(readyToApply(), 'h-budget', 'DO_NOT_GRANT', 'Budget approval remains with the controller.');
-  assert.deepEqual(connectedChangeSummary(run(apply(withheld))), { total: 5, completed: 5 });
+  assert.deepEqual(connectedChangeSummary(run(apply(withheld))), { total: 6, completed: 6 });
   const extraRemoval = decide(readyToApply(), 'h-bi', 'REMOVE', 'Remove reporting access.');
-  assert.deepEqual(connectedChangeSummary(run(apply(extraRemoval))), { total: 7, completed: 7 });
+  assert.deepEqual(connectedChangeSummary(run(apply(extraRemoval))), { total: 8, completed: 8 });
+});
+
+test('ServiceNow current and target access follows both recorded recommendations', () => {
+  assert.equal(decisions.length, 16);
+  assert.equal(entitlements.length, 40);
+  assert.equal(entitlements.find(item => item.id === 'snow-user').name, 'Employee Self Service');
+  assert.equal(entitlements.find(item => item.id === 'snow-change').name, 'Finance Request Approver');
+  assert.ok(identities[0].access.includes('snow-user'));
+  assert.ok(!identities[0].access.includes('snow-change'));
+  const applied = apply(readyToApply());
+  assert.ok(humanAccess(applied).some(item => item.id === 'h-snow-self'));
+  assert.ok(!humanAccess(applied).some(item => item.id === 'h-snow-approver'));
+  const executed = run(applied);
+  assert.equal(executed.tasks['h-snow-self'].status, 'Retained');
+  assert.equal(executed.tasks['h-snow-approver'].status, 'Granted');
+  assert.ok(humanAccess(executed).some(item => item.id === 'h-snow-approver'));
+  assert.equal(executed.fulfillmentEvidence.find(item => item.rowId === 'h-snow-approver').method, 'Application connector API');
+});
+
+test('manual-task resume and lifecycle completion persist, reset and never duplicate history', () => {
+  const open = provisioned();
+  assert.equal(sarahResumeTarget(initialState()), 'event');
+  assert.equal(sarahResumeTarget(open), 'provisioning');
+  assert.equal(lifecycleStatus(open), 'Manual task open');
+  assert.equal(open.legacyTask.status, 'Task open');
+  assert.deepEqual(open.legacyTask.rowIds.toSorted(), ['a-legacy', 'h-legacy']);
+  assert.deepEqual(restore(open), open);
+  assert.deepEqual(open.lifecycleEvidence, []);
+  const completed = complete(open);
+  assert.equal(sarahResumeTarget(completed), 'audit');
+  assert.equal(lifecycleStatus(completed), 'Completed');
+  assert.equal(completed.legacyTask.status, 'Completed');
+  assert.equal(completed.legacyTask.reference, 'DBA-VERIFY-0842');
+  assert.equal(completed.lifecycleEvidence.length, 1);
+  assert.equal(completed.lifecycleEvidence[0].status, 'Completed');
+  assert.equal(completed.lifecycleEvidence[0].task, 'SN-TASK-004812');
+  assert.ok(completed.lifecycleEvidence[0].timestamp.startsWith('2026-10-19'));
+  assert.deepEqual(restore(completed), completed);
+  assert.equal(complete(completed), completed);
+  const reset = reduce(completed, { type: 'RESET' });
+  assert.equal(reset.legacyTask, null);
+  assert.deepEqual(reset.lifecycleEvidence, []);
+  const noManual = run(apply(approve(acceptBoth(['h-legacy', 'a-legacy'].reduce((state, id) => decide(state, id, 'KEEP', 'Retained under approved duties.'), evaluate(initialState()))))));
+  assert.equal(noManual.legacyTask, null);
+  assert.equal(noManual.lifecycleEvidence.length, 1);
+  assert.equal(sarahResumeTarget(noManual), 'audit');
+});
+
+test('version 2 applied sessions migrate ServiceNow decisions and preserve approval, edits and completion', () => {
+  const legacyActions = [
+    { type: 'EVALUATE' },
+    ...decisions.filter(item => item.scope === 'human' && !['REVIEW'].includes(item.recommendedAction) && !item.id.startsWith('h-snow')).map(item => ({ type: 'DECIDE', rowId: item.id, action: item.recommendedAction })),
+    { type: 'ACCEPT_ALL', scope: 'agent' },
+    { type: 'REVIEW', result: 'approved', note: 'Approval retained from the prior version.' },
+    { type: 'DECIDE', rowId: 'h-budget', action: 'DO_NOT_GRANT', comment: 'Budget approval remains with the controller.' },
+    { type: 'APPLY_DECISIONS' }, { type: 'RUN_FULFILLMENT' },
+    { type: 'COMPLETE_LEGACY', reference: 'DBA-OLD-0842', note: 'Both removals independently verified.' },
+  ];
+  const migrated = restore({ version: 2, actions: legacyActions });
+  assert.equal(migrated.version, 3);
+  assert.equal(migrated.applied, true);
+  assert.equal(migrated.legacyTask.status, 'Completed');
+  assert.equal(decision(migrated, 'h-payment').comment, 'Approval retained from the prior version.');
+  assert.equal(decision(migrated, 'h-budget').decidedAction, 'DO_NOT_GRANT');
+  assert.equal(decision(migrated, 'h-snow-self').decidedAction, 'KEEP');
+  assert.equal(decision(migrated, 'h-snow-approver').decidedAction, 'GRANT');
+  assert.equal(migrated.tasks['h-snow-approver'].status, 'Granted');
+  assert.equal(migrated.lifecycleEvidence.length, 1);
+  assert.deepEqual(restore(migrated), migrated);
 });
