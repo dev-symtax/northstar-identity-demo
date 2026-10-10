@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, ArrowRight, Check, Info, ShieldCheck, ChevronRight, MessageSquare } from 'lucide-react';
+import { X, ArrowRight, Bot, Check, Info, ShieldCheck, ChevronRight, MessageSquare } from 'lucide-react';
 import { portraits } from '../data/assets.js';
 
 export function Badge({ children, tone, dot = true }) {
@@ -22,6 +22,12 @@ export function Avatar({ name, large = false }) {
 export function Actor({ name }) {
   const identity = name?.split(' · ')[0];
   return <span className="actor-cell">{portraits[identity] && <Avatar name={identity} />}<span>{name || '—'}</span></span>;
+}
+export function AgentIcon({ name = 'Finance Operations Agent' }) {
+  return <span className="agent-icon agent-tile" role="img" aria-label={`${name} · AI agent`} title={`${name} · AI agent`} data-identity-type="agent"><Bot size={18} strokeWidth={1.5} aria-hidden="true" /></span>;
+}
+export function AgentName({ children = 'Finance Operations Agent' }) {
+  return <span className="agent-name"><AgentIcon /><span>{children}</span></span>;
 }
 export function CommentTooltip({ comment }) {
   const [open, setOpen] = useState(false);

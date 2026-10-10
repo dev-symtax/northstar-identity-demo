@@ -127,6 +127,19 @@ test('approval requires a comment, remains editable before apply and grants noth
   assert.equal(approve(denied).review, 'approved');
 });
 
+test('human payment approval survives action replay and reconfirmation without granting agent payment or duplicating evidence', () => {
+  const approved = approve(acceptBoth(evaluate(initialState())));
+  const restored = restore(approved);
+  assert.deepEqual(decision(restored, 'h-payment'), decision(approved, 'h-payment'));
+  assert.equal(restored.review, 'approved');
+  assert.equal(decision(restored, 'a-payment').decidedAction, 'NOT_PERMITTED');
+  assert.equal(approve(restored), restored);
+  assert.equal(restored.decisionEvidence.filter(record => record.rowId === 'h-payment' && record.decidedAction === 'GRANT').length, 1);
+  const provisioned = run(apply(restored));
+  assert.equal(provisioned.tasks['h-payment'].status, 'Granted');
+  assert.equal(provisioned.tasks['a-payment'].status, 'Not permitted by policy');
+});
+
 test('SoD guardrail blocks Keep on receivables while payment is pending or approved', () => {
   for (const state of [evaluate(initialState()), approve(evaluate(initialState()))]) {
     const result = decide(state, 'h-ar', 'KEEP', 'Operational duties are still required.');

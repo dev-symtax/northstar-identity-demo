@@ -6,7 +6,7 @@ import PolicyDetails from '../components/PolicyDetails.jsx';
 import { ApplicationIcon, ApplicationName } from '../components/ApplicationIcon.jsx';
 import { SCENARIO } from '../data/scenario.js';
 import { actionLabel, getAccessDecision, legacyTaskRows } from '../demo/state.js';
-import { Actor, Badge, Button, Drawer, Empty, Field, Notice, PageTitle, SectionTitle, formatTime } from '../components/UI.jsx';
+import { Actor, AgentIcon, AgentName, Badge, Button, Drawer, Empty, Field, Notice, PageTitle, SectionTitle, formatTime } from '../components/UI.jsx';
 import { useStepFocus } from '../components/useStepFocus.js';
 import '../styles/provisioning-audit.css';
 
@@ -83,7 +83,7 @@ export default function Evidence({ state, navigate, workflow = false }) {
         const locked = entry?.status === 'Policy-locked' || row.id === 'a-payment';
         const changed = entry?.status === 'Changed';
         return <tr key={record.id} data-row-id={row.id}>
-          <td><div className="audit-access">{row.entitlement && <ApplicationIcon appId={entitlementById[row.entitlement].app} />}<button className="table-link" onClick={() => setDetail({ type: tab, record })}>{resourceName(row)}</button></div><small className="cell-subtitle">{identityLabel(row)}</small></td>
+          <td><div className="audit-access">{row.entitlement ? <ApplicationIcon appId={entitlementById[row.entitlement].app} /> : <AgentIcon />}<button className="table-link" onClick={() => setDetail({ type: tab, record })}>{resourceName(row)}</button></div><small className="cell-subtitle">{row.scope === 'outbound' ? <AgentName>{identityLabel(row)}</AgentName> : identityLabel(row)}</small></td>
           {entry ? <>
             <td><Badge>{actionLabel(entry.recommendedAction)}</Badge></td>
             <td>{locked ? <span className="audit-policy-lock"><LockKeyhole size={13} />Not permitted by policy</span> : <><Badge>{entry.decidedAction ? actionLabel(entry.decidedAction) : 'Not decided'}</Badge><small className="cell-subtitle">{changed ? `Changed from ${actionLabel(entry.recommendedAction)} to ${actionLabel(entry.decidedAction)}` : entry.status}</small></>}</td>
@@ -96,7 +96,7 @@ export default function Evidence({ state, navigate, workflow = false }) {
     {history && state.lifecycleEvidence.length > 0 && <section className="panel lifecycle-history"><SectionTitle title="Lifecycle history" description="Completion of the applied event and its operational tasks." /><table aria-label="Lifecycle history"><thead><tr><th>Event / identity</th><th>Status</th><th>Reason</th><th>Recorded by</th><th>Timestamp</th><th>Linked task</th></tr></thead><tbody>{state.lifecycleEvidence.map(record => <tr key={record.id}><td>{record.eventId}<small className="cell-subtitle">{record.identity}</small></td><td><Badge>{record.status}</Badge></td><td>{record.reason}</td><td>{record.actor}</td><td>{formatTime(record.timestamp)}</td><td>{record.task || '—'}</td></tr>)}</tbody></table></section>}
     {policyDetail && <PolicyDetails {...policyDetail} state={state} onClose={closePolicy} />}
     {detail && <Drawer title={resourceName(detailRow)} subtitle={detail.type === 'decision' ? 'ACCESS DECISION' : 'PROVISIONING RECORD'} onClose={close}>
-      <dl><Field label="Event">WD-MOV-2026-0842 · Workday</Field><Field label="Identity">{identityLabel(detailRow)}</Field><Field label="Access">{resourceName(detailRow)}</Field>{detailRow.entitlement && <Field label="Application"><ApplicationName appId={entitlementById[detailRow.entitlement].app} /></Field>}
+      <dl><Field label="Event">WD-MOV-2026-0842 · Workday</Field><Field label="Identity">{detailRow.scope === 'outbound' ? <AgentName>{identityLabel(detailRow)}</AgentName> : identityLabel(detailRow)}</Field><Field label="Access">{detailRow.scope === 'inbound' ? <AgentName /> : resourceName(detailRow)}</Field>{detailRow.entitlement && <Field label="Application"><ApplicationName appId={entitlementById[detailRow.entitlement].app} /></Field>}
         {detailDecision ? <>
           <Field label="Recommended">{actionLabel(detailDecision.recommendedAction)}</Field><Field label="Decided">{detailDecision.status === 'Policy-locked' ? 'Not permitted by policy · POL-AI-303' : detailDecision.decidedAction ? actionLabel(detailDecision.decidedAction) : 'Not decided'}</Field><Field label="Status">{detailDecision.status}</Field>
           <Field label="Reason">{detailDecision.reason}</Field><Field label="Policy">{detailDecision.policyId}{detailRow.id === 'h-payment' && ' · POL-SOD-017'}</Field><Field label="Decided by"><Actor name={detailDecision.decidedAction ? detailDecision.decidedBy || 'Policy engine' : '—'} /></Field><Field label="Timestamp">{formatTime(detailDecision.decidedAt || detail.record.timestamp)}</Field><Field label="Comment">{detailDecision.comment || '—'}</Field>

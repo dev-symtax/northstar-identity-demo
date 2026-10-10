@@ -130,6 +130,10 @@ export async function confirmCompletion(page, editable = true) {
   await assertProductLanguage(page);
   await dialog.getByRole('button', { name: 'Confirm completion', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Lifecycle events', exact: true, level: 1 })).toBeVisible();
+  await expect(page.locator('[data-record-id="WD-MOV-2026-0842"]')).toContainText('Completed');
+  await expect(page.locator('.recorded-toast')).toHaveText('Manual task completed. Sarah Miller’s role change is now complete.');
+  await expect(page.getByLabel('Access lifecycle', { exact: true })).toHaveCount(0);
 }
 
 export async function downloadAudit(page) {

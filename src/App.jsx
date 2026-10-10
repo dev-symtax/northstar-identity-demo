@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useReducer, useState } from 'react';
+import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { ArrowRight, BarChart3, Bot, Building2, Check, ChevronDown, ChevronRight, ClipboardCheck, FileCheck2, Fingerprint, GitBranch, Layers, LayoutDashboard, ListChecks, Menu, Network, ShieldCheck, Users } from 'lucide-react';
 import { demoReducer, restoreState, STORAGE_KEY, controlComplete, sarahResumeTarget } from './demo/state.js';
 import { SCENARIO } from './data/scenario.js';
@@ -42,6 +42,8 @@ export default function App() {
   const [guideOpen, setGuideOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [storageWarning, setStorageWarning] = useState(false);
+  const [completionNotice, setCompletionNotice] = useState('');
+  const previousLegacyStatus = useRef(state.legacyTask?.status ?? null);
   useEffect(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.get('reset') === '1') {
@@ -56,8 +58,22 @@ export default function App() {
   const navigate = useCallback(target => {
     const destination = target === 'sarah' ? sarahResumeTarget(state) : typeof target === 'number' ? steps[target].key : target;
     setWorkflow(target === 'sarah' || target === 4 || ['event', 'recommendations', 'provisioning'].includes(destination));
-    setScreen(destination); setMenuOpen(false); window.scrollTo({ top: 0, behavior: 'instant' });
+    setScreen(destination); setMenuOpen(false); setCompletionNotice(''); window.scrollTo({ top: 0, behavior: 'instant' });
   }, [state]);
+  useEffect(() => {
+    const status = state.legacyTask?.status ?? null;
+    const justCompleted = previousLegacyStatus.current === 'Task open' && status === 'Completed';
+    previousLegacyStatus.current = status;
+    if (justCompleted && controlComplete(state)) {
+      navigate(1);
+      setCompletionNotice('Manual task completed. Sarah Miller’s role change is now complete.');
+    }
+  }, [state, navigate]);
+  useEffect(() => {
+    if (!completionNotice) return;
+    const timer = setTimeout(() => setCompletionNotice(''), 5000);
+    return () => clearTimeout(timer);
+  }, [completionNotice]);
   const closeGuide = useCallback(() => setGuideOpen(false), []);
   useEffect(() => {
     const handleShortcut = event => {
@@ -86,9 +102,9 @@ export default function App() {
     <div className="workspace">
       <header className="topbar"><div className="breadcrumbs"><button className="icon-button mobile-menu" aria-label="Open navigation" onClick={() => setMenuOpen(!menuOpen)}><Menu size={20} /></button><span className="mobile-brand">Northstar <span>Identity</span></span><Building2 size={16} /><span>Meridian Global</span><ChevronRight size={13} />{workflow && <><span>Sarah Miller</span><ChevronRight size={13} /></>}<strong>{title}</strong></div><div className="topbar-right"><UserProfile location="header-profile" /></div></header>
       {workflow && <div className="story-bar"><div className="story-person"><Avatar name="Sarah Miller" /><div><strong>Sarah Miller</strong><span>Finance Analyst <ArrowRight size={12} /> Finance Manager</span></div></div><div className="story-steps" aria-label="Access lifecycle">{steps.map((step, index) => <React.Fragment key={step.key}>{index > 0 && <span className={`step-line ${stepsComplete[index - 1] ? 'done' : ''}`} />}<button className={`story-step ${index === stepIndex ? 'current' : ''} ${stepsComplete[index] ? 'done' : ''}`} onClick={() => navigate(index === 1 ? 'event' : index)} aria-label={`Step ${index + 1}: ${step.title}`} aria-current={index === stepIndex ? 'step' : undefined}><span className="step-circle">{stepsComplete[index] && index !== stepIndex ? <Check size={12} /> : index + 1}</span><span>{step.label}</span></button></React.Fragment>)}</div><div className="effective-date"><span>Effective date</span><strong>{SCENARIO.effectiveDate}</strong></div></div>}
-      <main key={`${screen}-${resetEpoch}`} className="main-content">{storageWarning && <Notice tone="amber">Browser storage is unavailable. Reloading will clear this session’s progress.</Notice>}{Screen ? <Screen state={state} dispatch={dispatch} navigate={navigate} workflow={workflow} /> : <WorkspacePage page={screen} state={state} navigate={navigate} />}</main>
+      <main key={`${screen}-${resetEpoch}`} className="main-content">{completionNotice && <div className="recorded-toast" role="status">{completionNotice}</div>}{storageWarning && <Notice tone="amber">Browser storage is unavailable. Reloading will clear this session’s progress.</Notice>}{Screen ? <Screen state={state} dispatch={dispatch} navigate={navigate} workflow={workflow} /> : <WorkspacePage page={screen} state={state} navigate={navigate} />}</main>
       <footer className="app-footer"><span>Today: {SCENARIO.workspaceBefore} <span className="footer-dot">·</span> UTC</span></footer>
     </div>
-    {guideOpen && <Drawer title="10-minute guide" subtitle="10 MINUTES" onClose={closeGuide}><ol className="guide-list"><li><strong>Identity · 1 min</strong><p>Inspect Sarah Miller’s current access and the Finance Operations Agent identity.</p></li><li><strong>Lifecycle event · 1 min</strong><p>Open Lifecycle events and select Sarah Miller. Review the Workday mover event received Tuesday, 13 October 2026 at 09:00 UTC, effective Monday, 19 October 2026.</p></li><li><strong>Recommendations · 3 min</strong><p>Accept the standard recommendations in both tabs, including ServiceNow Employee Self Service and Finance Request Approver. Review the policy violation, enter a comment and approve SAP Payment Approval. Inspect the agent’s policy-locked permission, then apply the decisions.</p></li><li><strong>Provisioning · 2 min</strong><p>Provision the scheduled changes on 19 October. Inspect the automated results and the ServiceNow manual task due at 12:00 UTC. Continue to Audit trail even while the manual task is open.</p></li><li><strong>Audit trail · 2 min</strong><p>Inspect All (16), the five key controls, policy details and provisioning records. Return to Lifecycle events and reopen Sarah to resume the open task. Confirm completion with a reference and verification note, review the Audit trail, then return to the queue. Reopening the completed event shows its audit history. Export the audit trail if needed.</p></li><li><strong>Outcomes · 1 min</strong><p>Discuss the access changes, the unresolved risks and the evidence recorded for each identity.</p></li></ol><Notice>Payment approval is restricted to human identities (POL-AI-303). It activates only after Accounts Receivable Operator is removed.</Notice></Drawer>}
+    {guideOpen && <Drawer title="10-minute guide" subtitle="10 MINUTES" onClose={closeGuide}><ol className="guide-list"><li><strong>Identity · 1 min</strong><p>Inspect Sarah Miller’s current access and the Finance Operations Agent identity.</p></li><li><strong>Lifecycle event · 1 min</strong><p>Open Lifecycle events and select Sarah Miller. Review the Workday mover event received Tuesday, 13 October 2026 at 09:00 UTC, effective Monday, 19 October 2026.</p></li><li><strong>Recommendations · 3 min</strong><p>Accept the standard recommendations in both tabs, including ServiceNow Employee Self Service and Finance Request Approver. Review the policy violation, enter a comment and approve SAP Payment Approval. Inspect the agent’s policy-locked permission, then apply the decisions.</p></li><li><strong>Provisioning · 2 min</strong><p>Provision the scheduled changes on 19 October. Inspect the automated results and the ServiceNow manual task due at 12:00 UTC. Continue to Audit trail even while the manual task is open.</p></li><li><strong>Audit trail · 2 min</strong><p>Inspect All (16), the five key controls, policy details and provisioning records. Return to Lifecycle events and reopen Sarah to resume the open task. Confirm completion with a reference and verification note. Completion returns automatically to Lifecycle events and shows Sarah as Completed. Reopen Sarah to inspect her audit history. Export the audit trail if needed.</p></li><li><strong>Outcomes · 1 min</strong><p>Discuss the access changes, the unresolved risks and the evidence recorded for each identity.</p></li></ol><Notice>Payment approval is restricted to human identities (POL-AI-303). It activates only after Accounts Receivable Operator is removed.</Notice></Drawer>}
   </div>;
 }

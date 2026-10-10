@@ -3,7 +3,7 @@ import { workspacePages } from '../data/workspace.js';
 import { decisions, entitlementById } from '../data/catalog.js';
 import { actionLabel, getAccessDecision } from '../demo/state.js';
 import { ApplicationName } from './ApplicationIcon.jsx';
-import { Badge, Drawer, Field } from './UI.jsx';
+import { AgentName, Badge, Drawer, Field } from './UI.jsx';
 
 const rules = {
   'POL-FIN-101': 'Access must match Sarah’s target Finance Manager role; unrelated operational access is removed.',
@@ -32,6 +32,6 @@ export default function PolicyDetails({ policyId, row, decision, state, onClose 
   }
   return <Drawer title={policy.name} subtitle={`POLICY · ${policy.id}`} onClose={onClose} preserveScroll>
     {appId && <div className="drawer-application"><ApplicationName appId={appId} /></div>}
-    <dl><Field label="Policy ID">{policy.id}</Field><Field label="Policy name">{policy.name}</Field><Field label="Policy type">{policy.type}</Field><Field label="Status"><Badge>{policy.status}</Badge></Field><Field label="Description">{policy.description}</Field><Field label="Condition / rule">{rules[policyId] || policy.description}</Field>{row && <><Field label="Decision identity">{row.scope === 'human' ? 'Sarah Miller' : row.scope === 'inbound' ? 'Sarah Miller · Agent usage' : 'Finance Operations Agent'}</Field><Field label="Result for this decision">{result}</Field></>}</dl>
+    <dl><Field label="Policy ID">{policy.id}</Field><Field label="Policy name">{policy.name}</Field><Field label="Policy type">{policy.type}</Field><Field label="Status"><Badge>{policy.status}</Badge></Field><Field label="Description">{policy.description}</Field><Field label="Condition / rule">{rules[policyId] || policy.description}</Field>{row && <><Field label="Decision identity">{row.scope === 'human' ? 'Sarah Miller' : row.scope === 'inbound' ? 'Sarah Miller · Agent usage' : <AgentName />}</Field><Field label="Result for this decision">{result}</Field></>}</dl>
   </Drawer>;
 }

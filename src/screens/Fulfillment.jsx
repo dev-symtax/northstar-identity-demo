@@ -19,7 +19,6 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   const [error, setError] = useState('');
   const [connectedExpanded, setConnectedExpanded] = useState(false);
   const [showUnchanged, setShowUnchanged] = useState(false);
-  const [completionToast, setCompletionToast] = useState(false);
   const legacyRef = useRef(null);
   const openLegacy = legacyTaskRows(state);
   const legacyRows = decisions.filter(row => row.entitlement === 'legacy-write' && getAccessDecision(row, state).decidedAction === 'REMOVE');
@@ -56,8 +55,8 @@ export default function Fulfillment({ state, dispatch, navigate }) {
   function completeTask(event) {
     event.preventDefault();
     if (!reference.trim() || !note.trim()) { setError('A completion reference and verification note are required.'); return; }
+    if (reference.length > 160 || note.length > 1500) { setError('The completion reference must be 160 characters or fewer and the verification note 1,500 characters or fewer.'); return; }
     dispatch({ type: 'COMPLETE_LEGACY', reference, note });
-    setCompletionToast(true);
     setTaskOpen(false);
   }
   function provision() {
@@ -69,7 +68,6 @@ export default function Fulfillment({ state, dispatch, navigate }) {
     <PageTitle eyebrow="ACCESS OPERATIONS · SARAH MILLER" title="Provisioning" description={`Applied access decisions are scheduled for ${SCENARIO.effectiveDate}.`} action={state.fulfillmentStarted ? <Button icon={ArrowRight} onClick={() => navigate(4)}>View audit trail</Button> : <Button icon={Play} onClick={provision}>Provision changes</Button>} />
     <p className="provisioning-run-date">Run date: Monday, 19 Oct 2026 · 08:00 UTC</p>
     <ol className="provisioning-status" aria-label="Provisioning status">{['Scheduled', 'Provisioned', hasManualTask ? 'Manual task open' : 'No manual task', 'Completed'].map((label, index) => { const current = !state.fulfillmentStarted ? 0 : openLegacy.length ? 2 : 3; return <li key={label} className={index === current ? 'current' : index < current ? 'done' : ''}><span>{index < current ? <Check size={16} /> : index + 1}</span>{label}</li>; })}</ol>
-    {completionToast && <div className="recorded-toast" role="status">Completion recorded for SN-TASK-004812.</div>}
     <div className={`fulfillment-banner ${state.fulfillmentStarted && !openLegacy.length ? 'complete' : ''}`}>
       <div className="banner-icon">{state.fulfillmentStarted && !openLegacy.length ? <CheckCircle2 size={26} /> : <Clock3 size={26} />}</div>
       <div><h2>{state.fulfillmentStarted ? `Role access provisioned. ${openLegacy.length ? '1 manual task open.' : 'No manual tasks open.'}` : `Changes scheduled for ${SCENARIO.effectiveDate}.`}</h2><p>{state.fulfillmentStarted ? 'Automated results and manual task status are recorded against the applied access decisions.' : 'No access has changed. Provisioning starts when the scheduled changes are run.'}</p></div>

@@ -72,9 +72,9 @@ test('Sarah workflow has clean source information, ServiceNow decisions, scoped 
   await expect(page.getByRole('heading', { name: 'Provisioning', exact: true })).toBeVisible();
   await expectFullyInViewport(page, page.locator('.legacy-panel'));
   await confirmCompletion(page);
-  await expect(page.locator('.legacy-panel .badge')).toHaveText('Completed');
-  await expect(page.locator('.legacy-panel')).not.toHaveClass(/task-attention/);
-  await page.getByRole('button', { name: 'View audit trail', exact: true }).click();
+  await expect(page.locator('.legacy-panel')).toHaveCount(0);
+  await sarahRow(page).getByRole('button').first().click();
+  await expect(page.getByRole('heading', { name: 'Audit trail', exact: true })).toBeVisible();
   await expect(stepper(page)).toBeVisible();
   await expect(page.getByRole('button', { name: 'All (16)', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.evidence-panel tbody tr')).toHaveCount(16);
@@ -110,6 +110,45 @@ test('Sarah workflow has clean source information, ServiceNow decisions, scoped 
   await expect(page.locator('.access-panel tbody tr')).toHaveCount(5);
   await expect(page.locator('.access-panel')).not.toContainText('Finance Request Approver');
   await assertProductLanguage(page);
+});
+
+test('manual completion stays open for invalid evidence and returns to the queue only after recording completion', async ({ page }) => {
+  await page.goto('/');
+  await openSarahEvent(page);
+  await page.getByRole('button', { name: 'Review access recommendations', exact: true }).click();
+  await decideAll(page);
+  await applyDecisions(page);
+  await provision(page);
+  await page.getByRole('button', { name: 'Confirm completion', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Confirm completion' });
+  await dialog.getByLabel('Verification note', { exact: true }).fill('   ');
+  await dialog.getByRole('button', { name: 'Confirm completion', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toHaveText('A completion reference and verification note are required.');
+  await expect(page.getByRole('heading', { name: 'Provisioning', exact: true })).toBeVisible();
+  await expect(page.locator('.recorded-toast')).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')).legacyTask.status)).toBe('Task open');
+  await dialog.getByLabel('Completion reference', { exact: true }).fill('CONTROL-VERIFY-0842');
+  await dialog.getByLabel('Verification note', { exact: true }).fill('Both database write permissions were revoked and independently verified.');
+  await dialog.getByRole('button', { name: 'Confirm completion', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Lifecycle events', exact: true, level: 1 })).toBeVisible();
+  await expect(sarahRow(page)).toContainText('Completed');
+  await expect(page.locator('.recorded-toast')).toHaveText('Manual task completed. Sarah Miller’s role change is now complete.');
+  const completed = await page.evaluate(() => JSON.parse(localStorage.getItem('northstar-identity-demo-v1')));
+  expect(completed.legacyTask).toMatchObject({ status: 'Completed', reference: 'CONTROL-VERIFY-0842' });
+  expect(completed.lifecycleEvidence).toHaveLength(1);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+  await nav(page, 'Lifecycle events');
+  await expect(sarahRow(page)).toContainText('Completed');
+  await sarahRow(page).getByRole('button').first().click();
+  await expect(page.getByRole('heading', { name: 'Audit trail', exact: true })).toBeVisible();
+  await page.getByLabel('Show full history').check();
+  await expect(page.getByRole('table', { name: 'Lifecycle history' }).locator('tbody tr')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Return to lifecycle events', exact: true }).click();
+  await page.keyboard.press('Shift+R');
+  await nav(page, 'Lifecycle events');
+  await expect(sarahRow(page)).toContainText('Needs decision');
+  await expect(page.locator('.recorded-toast')).toHaveCount(0);
 });
 
 test('workflow Audit Trail scopes its actions before evaluation and fits a narrow viewport', async ({ page }) => {

@@ -1,4 +1,5 @@
 .recommendations-screen .recommendation-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 0 18px; color: var(--muted); font-size: 11px; }
+.recommendations-screen .resource-cell { gap: 12px; }
 .recommendations-screen .recommendation-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; min-width: 130px; }
 .recommendations-screen .recommendation-controls .text-link { font-size: 10px; }
 .recommendations-screen .recommendation-lock { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 9px; }
@@ -24,9 +25,10 @@
 .recommendations-screen .recommendation-review-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .recommendations-screen .recommendation-apply { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 24px 0; font-size: 11px; color: var(--muted); }
 .recommendations-screen .recommendation-usage { flex-wrap: wrap; }
-.recommendations-screen .recommendation-usage > div:nth-child(2) { text-align: right; }
-.recommendations-screen .recommendation-usage .recommendation-status { align-items: flex-end; margin: 8px 0; }
+.recommendations-screen .recommendation-usage-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; text-align: right; }
+.recommendations-screen .recommendation-usage-actions .recommendation-controls { justify-content: flex-end; }
+.recommendations-screen .recommendation-usage .recommendation-status { align-items: flex-end; margin: 0; }
 .recommendations-screen .recommendation-usage-edit { width: 100%; text-align: left; }
 .recommendation-summary-title { margin: 24px 0 10px; }
 @media (max-width: 1050px) { .recommendations-screen .decisions-panel { overflow: auto; } .recommendations-screen .decisions-panel table { min-width: 980px; } }
-@media (max-width: 760px) { .recommendations-screen .recommendation-edit-fields { grid-template-columns: 1fr; } .recommendations-screen .recommendation-apply { align-items: flex-start; flex-direction: column; } .recommendations-screen .recommendation-usage > div:nth-child(2) { text-align: left; } .recommendations-screen .recommendation-usage .recommendation-status { align-items: flex-start; } }
+@media (max-width: 760px) { .recommendations-screen .recommendation-edit-fields { grid-template-columns: 1fr; } .recommendations-screen .recommendation-apply { align-items: flex-start; flex-direction: column; } .recommendations-screen .recommendation-usage-actions { align-items: flex-start; text-align: left; } .recommendations-screen .recommendation-usage-actions .recommendation-controls { justify-content: flex-start; } .recommendations-screen .recommendation-usage .recommendation-status { align-items: flex-start; } }
